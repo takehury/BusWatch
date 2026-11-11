@@ -1,0 +1,27 @@
+ground routes: 74
+  ok   route fetched (night: empty is OK)
+  ok   latency under 9s
+  ok   live vehicles >= 5
+  ok   coords in city
+  ok   vehicles have stop refs
+  ok   board dir0 rows
+  ok   board dir0 buses here >= 1
+  ok   board dir0 eta rows >= 1
+  ok   board dir0 user stop
+  ok   board dir1 rows
+--- board dir0 (around user stop #25) ---
+  23 Главпочтамт                    ~8 мин
+  24 Стадион Локомотив              здесь x1
+  25 Театр Кукол                    ~2 мин
+  26 пл. Революции                  ~3 мин  [ВЫ]
+  27 Агропром                       ~5 мин
+  28 Республики                     ~7 мин
+  29 БЦ Баланс                      здесь x1
+  30 Маерчака                       ~2 мин
+  ok   live total
+  ok   multi-city list has moscow
+  ok   moscow route page parsed or skipped
+  ok   moscow board built
+  ok   moscow live vehicles
+
+LIVE CHECK: all passed
