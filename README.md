@@ -222,9 +222,3 @@ wearos harmonyos tizen smartwatch android bus transport realtime
 kotlin-free java public-transport krasnoyarsk russia watchface hacktoberfest
 ```
 
-**Рекомендуемые настройки репозитория:**
-
-- Description — текст выше, Website — пусто или страница релизов;
-- Releases — теги `v1.28`, `v1.27`, … с APK из `versions/`;
-- Topics — список выше;
-- Social preview — `docs/images/screenshots/github-banner.png`.
