@@ -1,0 +1,177 @@
+/* Круглый экран Galaxy Watch 3: 360×360, тёмная тема. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    width: 360px;
+    height: 360px;
+    overflow: hidden;
+    background: #05090d;
+    color: #eaf3fa;
+    font-family: "Samsung One", "Roboto", sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+#app {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 40%, #12222e 0%, #05090d 72%);
+}
+
+#topbar {
+    position: absolute;
+    top: 14px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    font-size: 11px;
+    color: #8ca3b5;
+}
+
+#loc.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #5d7387;
+    display: inline-block;
+}
+#loc.manual { background: #ffb020; }
+#loc.good { background: #3ddc97; }
+
+.list {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 40px;
+    height: 280px;
+}
+
+.row {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0 10px;
+    overflow: hidden;
+}
+
+.row.selected { background: #172835; }
+.row.user { background: #1e3a2a; }
+
+.badge {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #0b1218;
+    font-weight: 700;
+}
+
+.title {
+    flex: 1 1 auto;
+    margin-left: 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: #d3dfe9;
+}
+
+.row.selected .title { color: #eaf3fa; }
+
+.sub {
+    font-size: 8px;
+    color: #5d7387;
+    margin-top: 1px;
+}
+
+.right {
+    flex: 0 0 auto;
+    text-align: right;
+    color: #ffb020;
+    font-weight: 700;
+}
+
+.right.here { color: #3ddc97; }
+
+.dots {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #3ddc97;
+}
+
+.idx {
+    flex: 0 0 auto;
+    width: 22px;
+    text-align: center;
+    color: #5d7387;
+    font-size: 9px;
+}
+
+.mark {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #3ddc97;
+    color: #0b1218;
+    font-size: 8px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hint {
+    position: absolute;
+    bottom: 14px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 8px;
+    color: #5d7387;
+}
+
+.toast {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(23, 40, 53, .96);
+    border: 1px solid #33536b;
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-size: 11px;
+    text-align: center;
+    max-width: 240px;
+}
+
+.scrollbar {
+    position: absolute;
+    right: 6px;
+    top: 70px;
+    width: 3px;
+    height: 220px;
+    border-radius: 2px;
+    background: #1a2a36;
+}
+
+.scrollbar > div {
+    width: 3px;
+    border-radius: 2px;
+    background: #ffb020;
+}

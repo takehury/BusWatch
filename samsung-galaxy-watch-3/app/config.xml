@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets"
+    xmlns:tizen="http://tizen.org/ns/widgets"
+    id="http://krsk.buswatch/tizen"
+    version="1.0.0"
+    viewmodes="maximized">
+
+    <tizen:application id="krskbuswatch.buswatch"
+        package="krskbuswatch"
+        required_version="5.5" />
+
+    <content src="index.html" />
+
+    <feature name="http://tizen.org/feature/screen.size.normal" />
+    <feature name="http://tizen.org/feature/network.internet" />
+
+    <icon src="icon.png" />
+
+    <name>Автобусы</name>
+    <description>Автобусы на часах в реальном времени</description>
+
+    <tizen:profile name="wearable" />
+
+    <!-- Сетевой доступ к фиду Bustime (Tizen widget whitelist) -->
+    <access origin="*" subdomains="true" />
+
+    <tizen:privilege name="http://tizen.org/privilege/internet" />
+    <tizen:privilege name="http://tizen.org/privilege/network.get" />
+    <tizen:privilege name="http://tizen.org/privilege/location" />
+    <tizen:privilege name="http://tizen.org/privilege/notification" />
+    <tizen:privilege name="http://tizen.org/privilege/feedback" />
+    <tizen:privilege name="http://tizen.org/privilege/alarm" />
+
+    <tizen:setting screen-orientation="portrait"
+        context-menu="disable"
+        background-support="disable"
+        encryption="disable"
+        install-location="auto"
+        hwkey-event="enable" />
+</widget>
