@@ -1,0 +1,36 @@
+<svg>
+  <rect id="bg" x="0" y="0" width="100%" height="100%" fill="#0b1218" />
+
+  <!-- шапка -->
+  <text id="clock" x="0" y="0" fill="#7f97a8" font-size="18" text-anchor="middle">--:--</text>
+  <text id="title" x="0" y="0" fill="#ffb020" font-size="16" text-anchor="middle" font-weight="bold">АВТОБУСЫ</text>
+  <rect id="back" x="0" y="0" width="60" height="40" rx="8" fill="#16232e" />
+  <text id="backLabel" x="0" y="0" fill="#cfe0ec" font-size="16" text-anchor="middle">‹</text>
+
+  <!-- строки списка -->
+  <rect id="r0" x="0" y="0" width="0" height="0" rx="10" fill="#16232e" />
+  <text id="n0" x="0" y="0" fill="#ffffff" font-size="20">—</text>
+  <text id="e0" x="0" y="0" fill="#3ddc97" font-size="18" text-anchor="end">—</text>
+
+  <rect id="r1" x="0" y="0" width="0" height="0" rx="10" fill="#16232e" />
+  <text id="n1" x="0" y="0" fill="#ffffff" font-size="20">—</text>
+  <text id="e1" x="0" y="0" fill="#3ddc97" font-size="18" text-anchor="end">—</text>
+
+  <rect id="r2" x="0" y="0" width="0" height="0" rx="10" fill="#16232e" />
+  <text id="n2" x="0" y="0" fill="#ffffff" font-size="20">—</text>
+  <text id="e2" x="0" y="0" fill="#3ddc97" font-size="18" text-anchor="end">—</text>
+
+  <rect id="r3" x="0" y="0" width="0" height="0" rx="10" fill="#16232e" />
+  <text id="n3" x="0" y="0" fill="#ffffff" font-size="20">—</text>
+  <text id="e3" x="0" y="0" fill="#3ddc97" font-size="18" text-anchor="end">—</text>
+
+  <rect id="r4" x="0" y="0" width="0" height="0" rx="10" fill="#16232e" />
+  <text id="n4" x="0" y="0" fill="#ffffff" font-size="20">—</text>
+  <text id="e4" x="0" y="0" fill="#3ddc97" font-size="18" text-anchor="end">—</text>
+
+  <rect id="r5" x="0" y="0" width="0" height="0" rx="10" fill="#16232e" />
+  <text id="n5" x="0" y="0" fill="#ffffff" font-size="20">—</text>
+  <text id="e5" x="0" y="0" fill="#3ddc97" font-size="18" text-anchor="end">—</text>
+
+  <text id="footer" x="0" y="0" fill="#5d7387" font-size="14" text-anchor="middle">свайп ↑↓ · нажмите для выбора</text>
+</svg>

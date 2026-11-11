@@ -1,32 +1,230 @@
-# Сборки по моделям часов
+# Автобусы — приложение для умных часов
 
-| Папка | Модель / ОС | Артефакт |
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![platform](https://img.shields.io/badge/platform-Wear%20OS%20%7C%20HarmonyOS%20%7C%20Tizen-2f81f7)](#поддерживаемые-устройства)
+[![Android](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-3ddc84)](#сборка)
+
+Открытое приложение для умных часов: **живые автобусы, троллейбусы и трамваи на
+карте города**, полный список остановок маршрута, прогноз ожидания и вибро­уведомление
+о прибытии — даже при выключенном экране.
+
+Один APK работает на круглых экранах **360–480 px** (Wear OS 3/4/5 и
+APK-совместимый HarmonyOS), город определяется по GPS автоматически.
+
+<p align="center">
+  <img src="docs/images/screenshots/hero.png" alt="Автобусы на умных часах" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/images/screenshots/01-routes.png" width="180" alt="Выбор маршрута">
+  <img src="docs/images/screenshots/02-stops.png" width="180" alt="Остановки и прогноз">
+  <img src="docs/images/screenshots/03-stop-menu.png" width="180" alt="Я здесь и жду">
+  <img src="docs/images/screenshots/04-cities.png" width="180" alt="22 города">
+</p>
+<p align="center">
+  <img src="docs/images/screenshots/05-settings.png" width="180" alt="Настройки">
+  <img src="docs/images/screenshots/06-error.png" width="180" alt="Понятные ошибки">
+</p>
+
+---
+
+## Содержание
+
+- [Возможности](#возможности)
+- [Поддерживаемые устройства](#поддерживаемые-устройства)
+- [Установка](#установка)
+- [Как это работает](#как-это-работает)
+- [Сборка](#сборка)
+- [Тестирование](#тестирование)
+- [Структура проекта](#структура-проекта)
+- [Данные и правовая заметка](#данные-и-правовая-заметка)
+- [Планы](#планы)
+- [Участие в проекте](#участие-в-проекте)
+- [Лицензия](#лицензия)
+
+## Возможности
+
+**Маршруты и остановки**
+
+- 22 города России; город выбирается в настройках или определяется по GPS
+  (ближайший поддерживаемый в радиусе 250 км).
+- Список маршрутов с fisheye-эффектом: центральная строка крупнее и шире, края
+  сужаются по форме круга.
+- Полный упорядоченный список остановок выбранного направления.
+- Любую строку можно поставить точно в центр экрана.
+
+**Живые данные**
+
+- На экране остановок позиции обновляются каждые **3 секунды**, в фоне — каждые 5.
+- На остановке показывается, что автобус **уже здесь** (зелёные кружки по числу
+  машин) или через сколько минут он подойдёт (`~N′`).
+- Ваша остановка помечена отдельным маркером.
+- Переключение направления движения одной кнопкой.
+
+**Уведомления**
+
+- «Ждать автобус»: метка на остановке, двойная вибрация и уведомление при
+  прибытии.
+- Foreground-сервис, wake-lock и сторожевой будильник держат ожидание живым при
+  погашенном экране и в Doze; лимит — 3 часа.
+- Одна машина — один кружок: дубликаты фида не «троят» индикатор.
+- В уведомлении показывается публичный номер маршрута («2»), а не внутренний id.
+
+**Управление и интерфейс**
+
+- Вращающееся колёсико, свайпы, касания; быстрое пролистывание с инерцией.
+- Круглый интерфейс, вписанный в радиус 112 dp; ночной режим с пояснением.
+- Ручная позиция «Я здесь» и отключаемое автоопределение.
+- Экран ошибки с кнопками «НАЗАД» и «ПОВТОР» и подсказкой про Wi-Fi/Bluetooth/LTE.
+
+## Поддерживаемые устройства
+
+| Платформа | Модели | Сборка |
 |---|---|---|
-| `huawei-watch-3-pro/` | Huawei Watch 3 Pro (HarmonyOS 2, Android APK) | `../versions/v1.28/KrskBusWatch-1.28.apk` |
-| `wear-os/` | Wear OS 3 / 4 / 5 (Pixel Watch, Galaxy Watch 4+, TicWatch) | `wear-os/dist/KrskBusWatch-wear-1.28.apk` |
-| `harmonyos/` | HarmonyOS 2 / 3 / 4 (APK-совместимые) | `harmonyos/dist/KrskBusWatch-harmony-1.28.apk` |
-| `harmonyos-next/` | HarmonyOS NEXT 5.x (HAP, ArkTS) | заготовка + инструкция (DevEco Studio) |
-| `samsung-galaxy-watch-3/` | Samsung Galaxy Watch 3 (Tizen 5.5) | `samsung-galaxy-watch-3/dist/KrskBusWatch-tizen-1.0.0.wgt` |
+| Wear OS 3/4/5 | Pixel Watch 1–3, Galaxy Watch 4–7/FE, Xiaomi Watch 2/2 Pro, OnePlus Watch 2/2R, TicWatch Pro 5, Fossil Gen 6 | `models/wear-os/` |
+| HarmonyOS 2–4 | Huawei Watch 3/3 Pro, Watch 4/4 Pro (APK-совместимые прошивки) | `models/harmonyos/` |
+| HarmonyOS NEXT 5 | Huawei Watch 5 | `models/harmonyos-next/` (HAP, DevEco Studio) |
+| Tizen 5.5 | Samsung Galaxy Watch 3 | `models/samsung-galaxy-watch-3/` |
+| Fitbit OS 5 | Versa 3/4, Sense/Sense 2 | `models/fitbit/` |
+| Android APK | Huawei Watch 3 Pro (основная сборка) | `versions/v1.28/` |
 
-Каждая папка самодостаточна: исходники, скрипт сборки, README с установкой и
-ограничениями. Общее ядро — один и тот же фид Bustime и каталог городов.
+Полная матрица с разрешениями и версиями ОС — в [docs/DEVICES.md](docs/DEVICES.md).
+Закрытые RTOS (Xiaomi Watch S1/S3, OnePlus Watch 1, Amazfit, Garmin) APK не
+запускают — для них нужен отдельный нативный порт. Fitbit использует собственный
+Fitbit OS SDK — см. `models/fitbit/`.
 
-## Быстрый выбор
+## Установка
 
-- **Huawei Watch 3 Pro** → основная сборка (папка `huawei-watch-3-pro/`).
-- **Wear OS 3/4/5** → `wear-os/`.
-- **HarmonyOS 2–4** (часы и телефоны Huawei) → `harmonyos/`.
-- **HarmonyOS NEXT 5.x** → APK не подходит, читайте `harmonyos-next/README.md`.
-- **Samsung Galaxy Watch 3** — это **Tizen**, не Wear OS → `samsung-galaxy-watch-3/`.
-- **Galaxy Watch 4/5/6/7** — Wear OS → `wear-os/`.
+```bash
+# Huawei Watch 3 Pro / APK-совместимые
+adb install -r versions/v1.28/KrskBusWatch-1.28.apk
+
+# Wear OS
+adb install -r models/wear-os/dist/KrskBusWatch-wear-1.28.apk
+```
+
+Нужен Android 8.0+ (API 26). На часах включите отладку по ADB, разрешите
+геопозицию и уведомления.
+
+## Как это работает
+
+```
+UI (Android)                     Логика (чистая Java, тестируется на хосте)
+├── WatchView  ── рисует UiFrame ├── Geo, Text, Displays
+├── WatchUi    ── строит кадр    ├── Board (остановки и прогноз)
+├── BusWatchActivity ─ состояние ├── Catalog, Cities, RoutePageParser
+└── BusAlertService ─ фон        ├── FeedParser, MiniJson, Fling
+                                 └── Alert, Selection, FocalList, RouteList
+```
+
+- Интерфейс описан списком примитивов `UiFrame`: его проигрывает и Android
+  `Canvas`, и Java2D-рендерер тестов — поэтому вёрстку можно проверять без
+  эмулятора.
+- Геометрия fisheye (`FocalList`, `RouteList`) используется и для отрисовки, и
+  для попаданий пальцем.
+- Каталог города лежит в `assets`; упорядоченные остановки для Красноярска
+  зашиты офлайн, для остальных городов читаются со страницы маршрута и кэшируются.
+- Живой фид опрашивается раз в 10 секунд в фоновом потоке.
+
+Подробнее: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Сборка
 
+Нужны **JDK 17**, **Android Build-Tools 34** и **Platform android-33**
+(пути задаются переменными `JAVA_HOME`, `BUILD_TOOLS`, `PLATFORM_DIR`).
+
 ```bash
-cd models/wear-os && JAVA_HOME=/tmp/jdk17home ./build.sh
-cd models/harmonyos && JAVA_HOME=/tmp/jdk17home ./build.sh
-cd models/samsung-galaxy-watch-3 && ./build.sh
+./build_apk.sh        # → versions/v1.28/KrskBusWatch-1.28.apk
+./run_tests.sh        # 223 проверки + рендеры экранов
+./run_tests.sh --live # + живая проверка фида
 ```
 
-Требования: JDK 17, Android Build-Tools 34, Platform android-33
-(в основной сборке — `build_apk.sh` в корне).
+Gradle намеренно не используется: сборка — это `aapt2` + `javac` + `d8` +
+`apksigner`, поэтому проект собирается на любой машине с SDK и без Android Studio.
+
+## Тестирование
+
+- **223 юнит-теста** без эмулятора: геодезия, прогноз прибытия, парсеры фида и
+  страниц маршрутов, города, fisheye-геометрия, масштабирование экранов,
+  инерционная прокрутка, детектор прибытия.
+- **UI-тесты**: интерфейс рендерится в PNG и автоматически проверяется, что весь
+  текст и кнопки вписаны в круг.
+- **Живой тест**: реальный фид Красноярска и страница маршрута Москвы.
+- **CI**: `.github/workflows/build.yml` — тесты, сборка APK и артефакты.
+
+## Структура проекта
+
+```
+app/                 исходники приложения и assets (22 города)
+app/tests/           хост-тесты: логика, UI-рендеры, живой фид
+versions/vX.Y/       релизы: APK + CHANGELOG каждой версии
+models/              сборки по моделям часов (Wear OS, HarmonyOS, Tizen)
+docs/                матрица устройств, архитектура, источники данных
+docs/images/screenshots/  готовые скриншоты и баннер для публикации
+tests/preview/       рендеры интерфейса (466×466, 360, 480)
+tools/               скрипты сбора каталога
+data/                исходные выгрузки
+.github/workflows/   CI: тесты + сборка APK
+```
+
+## Фоновая работа
+
+Режим ожидания переживает выключение экрана благодаря foreground-сервису,
+wake-lock и сторожевому будильнику `setAndAllowWhileIdle`. Что разрешить на часах
+и что делать, если уведомление не приходит, — в [docs/BACKGROUND.md](docs/BACKGROUND.md).
+
+## Данные и правовая заметка
+
+Источник — публичный веб-фид **Bustime** (`busti.me`): маршруты, остановки и
+позиции машин. Подробности и правовая заметка — в [docs/DATA.md](docs/DATA.md).
+
+Проект **не является официальным продуктом Bustime** и операторов транспорта;
+данные используются в ознакомительных целях. Перед публикацией в магазинах
+приложений уточните условия использования данных у правообладателя.
+
+## Планы
+
+- [x] 22 города и автоопределение по GPS
+- [x] Wear OS, HarmonyOS, Tizen
+- [x] Уведомление о прибытии в фоне
+- [ ] Виджет/циферблат с ближайшим автобусом
+- [ ] Избранные маршруты
+- [ ] Локализация интерфейса (EN)
+- [ ] Собственный HAP для HarmonyOS NEXT
+
+## Участие в проекте
+
+Issues и pull requests приветствуются. Как собрать и что проверить перед PR —
+в [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Лицензия
+
+[MIT](LICENSE).
+
+---
+
+## Публикация на GitHub
+
+Полный чек-лист, тексты для магазинов и состав пакета — в
+[docs/PUBLICATION.md](docs/PUBLICATION.md). Текст релиза 1.28 —
+[docs/releases/v1.28.md](docs/releases/v1.28.md).
+
+**About (краткое описание репозитория):**
+
+> Автобусы, троллейбусы и трамваи на умных часах: живые позиции, остановки,
+> прогноз ожидания и виброуведомление о прибытии. Wear OS, HarmonyOS, Tizen.
+> 22 города России. Открытый исходный код, MIT.
+
+**Topics:**
+
+```
+wearos harmonyos tizen smartwatch android bus transport realtime
+kotlin-free java public-transport krasnoyarsk russia watchface hacktoberfest
+```
+
+**Рекомендуемые настройки репозитория:**
+
+- Description — текст выше, Website — пусто или страница релизов;
+- Releases — теги `v1.28`, `v1.27`, … с APK из `versions/`;
+- Topics — список выше;
+- Social preview — `docs/images/screenshots/github-banner.png`.
