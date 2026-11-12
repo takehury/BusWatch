@@ -86,7 +86,7 @@ APK-совместимый HarmonyOS), город определяется по 
 | HarmonyOS NEXT 5 | Huawei Watch 5 | `models/harmonyos-next/` (HAP, DevEco Studio) |
 | Tizen 5.5 | Samsung Galaxy Watch 3 | `models/samsung-galaxy-watch-3/` |
 | Fitbit OS 5 | Versa 3/4, Sense/Sense 2 | `models/fitbit/` |
-| Android APK | Huawei Watch 3 Pro (основная сборка) | `versions/v1.28/` |
+| Android APK | Huawei Watch 3 Pro (основная сборка) | `versions/v1.67/` |
 
 Полная матрица с разрешениями и версиями ОС — в [docs/DEVICES.md](docs/DEVICES.md).
 Закрытые RTOS (Xiaomi Watch S1/S3, OnePlus Watch 1, Amazfit, Garmin) APK не
