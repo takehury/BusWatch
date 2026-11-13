@@ -79,8 +79,9 @@ check("board other direction not mixed", (() => {
   return b.rows.every((r) => r.atStop.length === 0);
 })());
 check("board stale vehicles dropped", (() => {
+  // «сейчас» на 20 часов позже снимка: фид вне часовых поясов → ничего не показываем
   const b = core.buildBoard(stops, feed, 0, stops[0].lat, stops[0].lon,
-    now + 3600, 300);
+    now + 72000, 300);
   return b.rows.every((r) => r.atStop.length === 0);
 })());
 
@@ -106,6 +107,25 @@ check("eta text minutes", core.etaText({ hasBusHere: false, etaMinutes: 7 }) ===
 check("eta text none", core.etaText({ hasBusHere: false, etaMinutes: -1 }) === "—");
 check("route number", core.routeNumber("2", 195) === "2");
 check("clock", /^\d{2}:\d{2}$/.test(core.clockText(new Date())));
+
+/* ----------------------------------------------------------- feed clock */
+const nowSec = Math.floor(Date.now() / 1000);
+const nskV = { uid: "a", lat: 55, lon: 82, dir: 0, order: 0, stopId: 1, plate: "P", timestampSec: nowSec - 7 * 3600, sleeping: false };
+const vladV = { uid: "b", lat: 43, lon: 131, dir: 0, order: 0, stopId: 1, plate: "Q", timestampSec: nowSec + 10 * 3600, sleeping: false };
+const krskV = { uid: "c", lat: 56, lon: 92, dir: 0, order: 0, stopId: 1, plate: "R", timestampSec: nowSec - 60, sleeping: false };
+check("clock offset nsk", core.estimateOffset([nskV], nowSec) === 7 * 3600);
+check("clock offset vlad", core.estimateOffset([vladV], nowSec) === -10 * 3600);
+check("clock offset utc", core.estimateOffset([krskV], nowSec) === 60);
+check("clock fresh nsk", core.isFresh(nskV, nowSec, core.estimateOffset([nskV], nowSec)));
+check("clock fresh vlad", core.isFresh(vladV, nowSec, core.estimateOffset([vladV], nowSec)));
+check("clock stale dropped", !core.isFresh(
+  { ...nskV, timestampSec: nowSec - 7 * 3600 - 900 }, nowSec, 7 * 3600));
+check("clock no timestamp", core.isFresh({ ...nskV, timestampSec: 0 }, nowSec, 0));
+check("clock broken feed rejected", (() => {
+  const off = core.estimateOffset([{ ...nskV, timestampSec: nowSec - 20 * 3600 }], nowSec);
+  return off === core.OFFSET_BROKEN
+    && !core.isFresh(nskV, nowSec, off);
+})());
 
 /* --------------------------------------------------- companion data bundle */
 const data = (await import("./companion/data.js")).default;

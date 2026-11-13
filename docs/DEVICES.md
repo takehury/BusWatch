@@ -50,10 +50,30 @@
 Сборка: `models/harmonyos/` (APK для APK-совместимых прошивок).
 Для HarmonyOS NEXT — `models/harmonyos-next/` (нативный HAP, нужен DevEco Studio).
 
+## Fitbit OS
+
+| Модель | Год | ОС | Экран | Статус |
+|---|---|---|---|---|
+| Fitbit Versa / Versa Lite / Versa 2 | 2018–2019 | Fitbit OS 3–4 | прямоугольный | ✅ `models/fitbit/` |
+| Fitbit Versa 3 | 2020 | Fitbit OS 5.2 | 336×336 | ✅ |
+| Fitbit Sense | 2020 | Fitbit OS 5.2 | 336×336 | ✅ |
+| Fitbit Versa 4 | 2022 | Fitbit OS 5.3 | 336×336 | ✅ |
+| Fitbit Sense 2 | 2022 | Fitbit OS 5.3 | 336×336 | ✅ |
+| Fitbit Charge 5 / 6 | 2022–2023 | Fitbit OS (трекеры) | — | ❌ сторонние приложения не поддерживаются |
+| Новые модели на Fitbit OS 5.x | 2025–2026 | Fitbit OS | — | ✅ при совместимости SDK |
+
+Порт написан на JavaScript + SVG (Fitbit SDK), логика продублирована в
+`models/fitbit/core.mjs` и покрыта 48 тестами. Фоновое ожидание автобуса на
+Fitbit OS невозможно — платформа не разрешает фоновую работу сторонних
+приложений; вибрация о прибытии работает, пока приложение открыто.
+
 ## Не поддерживается
 
 Часы на закрытых RTOS: Xiaomi Watch S1/S2/S3 (MIUI/HyperOS), OnePlus Watch 1,
 Amazfit, Garmin, Polar, Withings. Они не запускают APK — нужен отдельный нативный порт.
+
+Fitbit Charge 5/6 формально работают на Fitbit OS, но не поддерживают сторонние
+приложения (только циферблаты).
 
 ## Samsung Galaxy Watch 3 (2020)
 
@@ -64,7 +84,7 @@ Amazfit, Garmin, Polar, Withings. Они не запускают APK — нуж�
 
 1. На часах: Настройки → Система → О телефоне/часах → 7 раз по «Номер сборки»,
    затем «Для разработчиков» → **Отладка по ADB** (или по Wi-Fi).
-2. `adb install -r KrskBusWatch-wear-1.28.apk`
+2. `adb install -r KrskBusWatch-wear-1.70.apk`
 3. Разрешить геопозицию и уведомления.
 
 ## Сеть на часах

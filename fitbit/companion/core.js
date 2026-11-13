@@ -8,6 +8,33 @@ export const CITY_LON = 92.90658;
 export const SECONDS_PER_STOP = 100;
 export const MAX_AGE_SEC = 300;
 
+/* ----------------------------------------------------------- feed clock */
+
+/**
+ * Bustime reports `ts` in the city's local time, not UTC: Novosibirsk looks
+ * 7 h ahead, Vladivostok 10 h. The shift is estimated from the newest
+ * timestamp of the feed itself.
+ */
+export const OFFSET_BROKEN = Number.MAX_SAFE_INTEGER;
+
+export function estimateOffset(vehicles, nowSec) {
+  let newest = 0;
+  for (const v of vehicles) if (v.timestampSec > newest) newest = v.timestampSec;
+  if (newest <= 0) return 0;
+  const diff = nowSec - newest;
+  // часовые пояса: UTC-12 … UTC+14. Больше — фид нерабочий.
+  if (diff > 14 * 3600) return OFFSET_BROKEN;
+  if (diff < -12 * 3600) return -OFFSET_BROKEN;
+  return diff;
+}
+
+export function isFresh(v, nowSec, offset, maxAge = MAX_AGE_SEC) {
+  if (offset === OFFSET_BROKEN || offset === -OFFSET_BROKEN) return false;
+  if (!v.timestampSec) return true;
+  const age = nowSec - (v.timestampSec + offset);
+  return age <= maxAge && age >= -120;
+}
+
 /* ------------------------------------------------------------------ geo */
 
 export function distanceMeters(lat1, lon1, lat2, lon2) {
@@ -198,9 +225,10 @@ function resolveOrder(v, stops) {
 
 export function resolveVehicleOrders(stops, vehicles, dir, nowSec, maxAge = MAX_AGE_SEC) {
   const out = new Map();
+  const offset = estimateOffset(vehicles, nowSec);
   for (const v of vehicles) {
     if (v.dir !== dir || v.sleeping) continue;
-    if (v.timestampSec > 0 && nowSec - v.timestampSec > maxAge) continue;
+    if (!isFresh(v, nowSec, offset, maxAge)) continue;
     const o = resolveOrder(v, stops);
     if (o >= 0) out.set(v.uid || `${v.lat},${v.lon},${v.plate}`, o);
   }
@@ -214,9 +242,11 @@ export function resolveVehicleOrders(stops, vehicles, dir, nowSec, maxAge = MAX_
 export function buildBoard(stops, vehicles, dir, userLat, userLon, nowSec, maxAge = MAX_AGE_SEC) {
   const byOrder = new Map();
   const live = [];
-  for (const v of uniqueVehicles(vehicles)) {
+  const all = uniqueVehicles(vehicles);
+  const offset = estimateOffset(all, nowSec);
+  for (const v of all) {
     if (v.dir !== dir || v.sleeping) continue;
-    if (v.timestampSec > 0 && nowSec - v.timestampSec > maxAge) continue;
+    if (!isFresh(v, nowSec, offset, maxAge)) continue;
     const o = resolveOrder(v, stops);
     if (o < 0) continue;
     live.push(v);

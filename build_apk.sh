@@ -13,7 +13,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 AJ="$PLATFORM/android.jar"
 OUT=build
 rm -rf "$OUT"
-mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex" versions/v1.28
+mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex" versions/v1.70
 
 echo "[1/7] aapt2 compile"
 "$BT/aapt2" compile --dir app/res -o "$OUT/res.zip"
@@ -28,8 +28,8 @@ echo "[2/7] aapt2 link"
   --java "$OUT/gen" \
   --min-sdk-version 26 \
   --target-sdk-version 33 \
-  --version-code 29 \
-  --version-name 1.28 \
+  --version-code 70 \
+  --version-name 1.70 \
   --no-version-vectors
 
 echo "[3/7] javac"
@@ -54,8 +54,8 @@ if [ ! -f "$KS" ]; then
 fi
 "$BT/apksigner" sign --ks "$KS" --ks-pass pass:android --key-pass pass:android \
   --v1-signing-enabled true --v2-signing-enabled true \
-  --out versions/v1.28/KrskBusWatch-1.28.apk "$OUT/app-aligned.apk"
+  --out versions/v1.70/KrskBusWatch-1.70.apk "$OUT/app-aligned.apk"
 
 echo "[7/7] verify"
-"$BT/apksigner" verify --print-certs versions/v1.28/KrskBusWatch-1.28.apk | head -8
-ls -lh versions/v1.28/KrskBusWatch-1.28.apk
+"$BT/apksigner" verify --print-certs versions/v1.70/KrskBusWatch-1.70.apk | head -8
+ls -lh versions/v1.70/KrskBusWatch-1.70.apk
