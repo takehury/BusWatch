@@ -305,9 +305,7 @@ unzip -tq versions/v1.70/KrskBusWatch-1.70.apk
 $BUILD_TOOLS/apksigner verify --print-certs versions/v1.70/KrskBusWatch-1.70.apk
 ```
 
-Для публикации на GitHub используйте тег `v1.70`, файл
-`versions/v1.70/KrskBusWatch-1.70.apk` и changelog из
-`versions/v1.70/CHANGELOG.md`.
+
 
 ## Как это работает
 
