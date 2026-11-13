@@ -11,6 +11,44 @@ public final class Selection {
 
     public static final int VISIBLE_ROWS = FocalList.VISIBLE;
 
+    /** Number of rows this selection is drawn with. */
+    private int visible = FocalList.VISIBLE;
+
+    /** true = a row can be centred with empty slots above/below (route lists). */
+    private boolean overScroll = true;
+
+    /** Which visible slot the selected row is pinned to (visible/2 by default). */
+    private int centreSlot = -1;
+
+    /** Sets how many rows the owning list shows (4 for routes, 5 for stops). */
+    public void setVisible(int rows) {
+        if (rows > 0) visible = rows;
+    }
+
+    public int visibleCount() {
+        return visible;
+    }
+
+    /**
+     * Turns the "empty slots" scrolling off: the window then stops at the
+     * first/last row, which suits menus where every item must stay visible.
+     */
+    public void setOverScroll(boolean enabled) {
+        overScroll = enabled;
+    }
+
+    /**
+     * Pins the selected row to a fixed slot, which is used to put it exactly on
+     * the display centre when the list has an even number of rows.
+     */
+    public void setCentreSlot(int slot) {
+        centreSlot = slot;
+    }
+
+    private int centre() {
+        return centreSlot >= 0 ? centreSlot : Math.max(0, visible / 2);
+    }
+
     private final List<String> keys = new ArrayList<>();
     private int selected;
     private String selectedKey = "";
@@ -84,7 +122,12 @@ public final class Selection {
 
     public int topIndex() {
         if (keys.isEmpty()) return 0;
-        return FocalList.topIndex(keys.size(), selected);
+        int centre = centre();
+        if (overScroll) {
+            return Geo.clamp(selected - centre, -centre, keys.size() - 1 - centre);
+        }
+        // classic scrolling: no empty slots, the window stops at the edges
+        return Geo.clamp(selected - centre, 0, Math.max(0, keys.size() - visible));
     }
 
     public boolean hasMoreAbove() {
@@ -92,12 +135,12 @@ public final class Selection {
     }
 
     public boolean hasMoreBelow() {
-        return topIndex() + VISIBLE_ROWS < keys.size();
+        return topIndex() + visible < keys.size();
     }
 
     public String keyAtRow(int row) {
         int idx = topIndex() + row;
-        if (row < 0 || row >= VISIBLE_ROWS || idx < 0 || idx >= keys.size()) return null;
+        if (row < 0 || row >= visible || idx < 0 || idx >= keys.size()) return null;
         return keys.get(idx);
     }
 

@@ -27,8 +27,8 @@ echo "[2/6] aapt2 link (targetSdk 34, watch required)"
   --java "$OUT/gen" \
   --min-sdk-version 26 \
   --target-sdk-version 34 \
-  --version-code 51 \
-  --version-name 1.28-wear \
+  --version-code 131 \
+  --version-name 1.68-wear \
   --no-version-vectors
 
 echo "[3/6] javac"
@@ -48,6 +48,6 @@ KS=keystore/debug.keystore
 [ -f "$KS" ] || KS=../../keystore/debug.keystore
 "$BT/apksigner" sign --ks "$KS" --ks-pass pass:android --key-pass pass:android \
   --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
-  --out dist/KrskBusWatch-wear-1.28.apk "$OUT/app-aligned.apk"
-"$BT/apksigner" verify --print-certs dist/KrskBusWatch-wear-1.28.apk | head -4
-ls -lh dist/KrskBusWatch-wear-1.28.apk
+  --out dist/KrskBusWatch-wear-1.68.apk "$OUT/app-aligned.apk"
+"$BT/apksigner" verify --print-certs dist/KrskBusWatch-wear-1.68.apk | head -4
+ls -lh dist/KrskBusWatch-wear-1.68.apk

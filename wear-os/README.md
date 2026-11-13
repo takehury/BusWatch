@@ -1,6 +1,6 @@
 # Автобусы Красноярска — сборка для **Wear OS 3 / 4 / 5**
 
-Готовая сборка: `dist/KrskBusWatch-wear-1.28.apk` (1,5 МБ, подписана v2+v3).
+Готовая сборка: `dist/KrskBusWatch-wear-1.70.apk` (1,5 МБ, подписана v2+v3).
 
 Это та же программа, что и основная, но собранная под требования новых Wear OS.
 Круглый интерфейс, fisheye-список, колёсико, ожидание автобуса — всё сохранено.
@@ -21,7 +21,7 @@
 2. Подключите часы к компьютеру (Wi-Fi ADB или док-станция) и выполните:
 
 ```bash
-adb install -r KrskBusWatch-wear-1.28.apk
+adb install -r KrskBusWatch-wear-1.70.apk
 ```
 
 3. На часах откройте приложение из списка, разрешите **геопозицию** и **уведомления**.
@@ -30,7 +30,7 @@ adb install -r KrskBusWatch-wear-1.28.apk
 
 ```bash
 adb uninstall ru.krsk.buswatch
-adb install KrskBusWatch-wear-1.28.apk
+adb install KrskBusWatch-wear-1.70.apk
 ```
 
 ## Совместимость
@@ -62,7 +62,7 @@ adb install KrskBusWatch-wear-1.28.apk
 
 ```bash
 JAVA_HOME=/tmp/jdk17home ./build.sh
-# → dist/KrskBusWatch-wear-1.28.apk
+# → dist/KrskBusWatch-wear-1.70.apk
 ```
 
 Скрипт использует общий `keystore/debug.keystore` из корня проекта, поэтому подпись

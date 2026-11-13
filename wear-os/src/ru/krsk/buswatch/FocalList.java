@@ -98,12 +98,20 @@ public final class FocalList {
      * empty slots are simply not drawn.
      */
     public static int topIndex(int size, int selected) {
+        return topIndex(size, selected, VISIBLE);
+    }
+
+    /**
+     * First visible index for a window of {@code visible} rows. Works for any
+     * list length: a short list still scrolls so the chosen row can sit in the
+     * middle slot, with empty slots above/below.
+     */
+    public static int topIndex(int size, int selected, int visible) {
         if (size <= 0) return 0;
-        int half = VISIBLE / 2;
-        if (size <= VISIBLE) return -(VISIBLE - size) / 2;
-        int minTop = -half;
-        int maxTop = size - 1 - half;
-        return Geo.clamp(selected - half, minTop, maxTop);
+        int centre = Math.max(0, visible / 2);
+        int minTop = -centre;
+        int maxTop = size - 1 - centre;
+        return Geo.clamp(selected - centre, minTop, maxTop);
     }
 
     /** Lowest possible first index (may be negative). */

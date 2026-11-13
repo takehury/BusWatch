@@ -143,7 +143,8 @@ public final class BusAlertService extends Service {
             if (vehicles == null || vehicles.isEmpty()) return true;
             long now = System.currentTimeMillis() / 1000L;
             java.util.Map<String, Integer> orders =
-                    Board.resolveVehicleOrders(stops, vehicles, prefs.alertDir(), now, 300);
+                    Board.resolveVehicleOrders(stops, vehicles, prefs.alertDir(), now,
+                            FeedClock.MAX_AGE_SEC);
             updateOngoing(prefs, orders.size(), now);
             prefs.setLastCheck(now * 1000L);
             if (alert == null || alert.stopIndex() != prefs.alertStopIndex()) {
