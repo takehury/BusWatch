@@ -33,6 +33,7 @@ APK-совместимый HarmonyOS), город определяется по 
 - [Возможности](#возможности)
 - [Поддерживаемые устройства](#поддерживаемые-устройства)
 - [Установка](#установка)
+- [Полная инструкция релиза 1.70](#полная-инструкция-релиза-170)
 - [Как это работает](#как-это-работает)
 - [Сборка](#сборка)
 - [Тестирование](#тестирование)
@@ -106,6 +107,207 @@ adb install -r models/wear-os/dist/KrskBusWatch-wear-1.70.apk
 
 Нужен Android 8.0+ (API 26). На часах включите отладку по ADB, разрешите
 геопозицию и уведомления.
+
+## Полная инструкция релиза 1.70
+
+Версия **1.70** — стабильный релиз для публикации на GitHub. APK проверен на
+целостность и подписью `apksigner`. Исходники, скрипты и changelog находятся в
+репозитории проекта, а основной файл релиза —
+`versions/v1.70/KrskBusWatch-1.70.apk`.
+
+### 1. Huawei Watch 3 Pro — основная Android APK-сборка
+
+Подходит для Huawei Watch 3 Pro и других APK-совместимых часов на HarmonyOS 2–4.
+
+**Установка через ADB**
+
+1. Включите на часах режим разработчика: откройте сведения об устройстве и
+   нажмите «Номер сборки» семь раз.
+2. Включите «Отладку по ADB» или «Отладку по Wi‑Fi».
+3. Подключите часы к компьютеру и проверьте соединение:
+
+```bash
+adb devices
+adb install -r versions/v1.70/KrskBusWatch-1.70.apk
+```
+
+4. При первом запуске разрешите доступ к геопозиции и уведомлениям.
+5. Если установка поверх старой версии завершается ошибкой подписи, удалите
+   приложение и установите его заново:
+
+```bash
+adb uninstall ru.krsk.buswatch
+adb install versions/v1.70/KrskBusWatch-1.70.apk
+```
+
+Включите автозапуск и работу в фоне в настройках батареи Huawei, если функция
+«Ждать автобус» прекращается после выключения экрана.
+
+### 2. Wear OS 3, 4 и 5
+
+Поддерживаются Pixel Watch 1–3, Galaxy Watch 4–7/FE, Xiaomi Watch 2/2 Pro,
+OnePlus Watch 2/2R, TicWatch Pro 5 и Fossil Gen 6.
+
+Для Wear OS используется отдельная сборка с `targetSdk 34`, обязательным
+watch-профилем и поддержкой автономной работы часов. APK нужно собрать из
+`models/wear-os/`:
+
+```bash
+cd models/wear-os
+JAVA_HOME=/tmp/jdk17home ./build.sh
+# результат: dist/KrskBusWatch-wear-1.70.apk
+```
+
+**Установка**
+
+1. На часах откройте «Настройки → Система → Сведения» и нажмите «Номер сборки»
+   семь раз.
+2. Включите «Отладку по ADB» и, при необходимости, «Отладку по Wi‑Fi».
+3. Подключите часы и выполните:
+
+```bash
+adb devices
+adb install -r dist/KrskBusWatch-wear-1.70.apk
+```
+
+Для чистой установки:
+
+```bash
+adb uninstall ru.krsk.buswatch
+adb install dist/KrskBusWatch-wear-1.70.apk
+```
+
+После запуска разрешите геопозицию и уведомления. На Wear OS 4/5 проверьте также
+разрешение уведомлений и отсутствие ограничений фоновой работы.
+
+### 3. HarmonyOS 2, 3 и 4 — APK-совместимые часы Huawei
+
+Поддерживаются Huawei Watch 3/3 Pro и Watch 4/4 Pro на APK-совместимых
+прошивках. Эта сборка также может устанавливаться на телефоны Huawei с
+HarmonyOS 2–4.
+
+Сборка:
+
+```bash
+cd models/harmonyos
+JAVA_HOME=/tmp/jdk17home ./build.sh
+# результат: dist/KrskBusWatch-harmony-1.70.apk
+```
+
+Установка на часы или телефон:
+
+```bash
+adb devices
+adb install -r dist/KrskBusWatch-harmony-1.70.apk
+```
+
+Для ошибки `INSTALL_FAILED_UPDATE_INCOMPATIBLE` выполните `adb uninstall
+ru.krsk.buswatch`, затем повторите установку. В настройках Huawei разрешите
+автозапуск, работу в фоне, геопозицию и уведомления.
+
+### 4. HarmonyOS NEXT 5 — Huawei Watch 5
+
+HarmonyOS NEXT **не запускает Android APK**. Для Huawei Watch 5 требуется
+нативный HAP-пакет, собранный в DevEco Studio с подписью, связанной с Huawei ID.
+Готового HAP в релизе 1.70 нет.
+
+1. Установите DevEco Studio 5.0+.
+2. Создайте проект `Application → Empty Ability`, язык ArkTS, API 12, профиль
+   Wearable.
+3. Скопируйте `models/harmonyos-next/BusModel.ets` и `Index.ets` в проект.
+4. Добавьте разрешения INTERNET, LOCATION, VIBRATE и
+   KEEP_BACKGROUND_RUNNING из `models/harmonyos-next/README.md`.
+5. Включите автоматическую подпись в `Project Structure → Signing Configs`.
+6. Соберите HAP через `Build → Build Hap(s)/App(s)`.
+7. Установите пакет на часы:
+
+```bash
+hdc install entry/build/default/outputs/default/entry-default-signed.hap
+```
+
+### 5. Samsung Galaxy Watch 3 — Tizen 5.5
+
+Galaxy Watch 3 работает на Tizen, поэтому Android APK и Wear OS APK на нём не
+устанавливаются. Нужен веб-пакет `.wgt` из `models/samsung-galaxy-watch-3/`.
+
+1. Установите Tizen Studio 4.6+ с расширениями Wearable и Samsung Certificate
+   Extension.
+2. В `Tools → Certificate Manager` создайте сертификат Samsung.
+3. Соберите проект:
+
+```bash
+cd models/samsung-galaxy-watch-3
+./build.sh
+```
+
+4. Подпишите пакет профилем сертификата в Tizen Studio (`Project → Build Signed
+   Package`).
+5. На часах включите режим разработчика и отладку по Wi‑Fi, затем подключитесь:
+
+```bash
+sdb connect <IP-часов>:26101
+sdb install KrskBusWatch-tizen-1.0.0-signed.wgt
+```
+
+Фоновое ожидание на текущем Tizen-порту работает только пока приложение открыто;
+это ограничение Tizen Web App.
+
+### 6. Fitbit OS 5 — Versa 3/4 и Sense/Sense 2
+
+Fitbit использует отдельный JavaScript/SVG-порт. APK на эти часы не ставится.
+Готовый `.fba` не входит в релиз: для сборки нужны официальный Fitbit SDK и
+учётная запись разработчика.
+
+```bash
+cd models/fitbit
+npm install
+npm run build
+# результат: build/fitbit.fba
+```
+
+Установка выполняется через Fitbit Developer Bridge:
+
+1. В приложении Fitbit включите режим разработчика.
+2. Выполните `npx fitbit`.
+3. Выберите `connect device`, затем `install`.
+
+Уведомления и ожидание автобуса на Fitbit работают только пока приложение
+активно, поскольку Fitbit OS ограничивает фоновые приложения.
+
+## Разрешения и первый запуск
+
+При первом запуске разрешите:
+
+- **Интернет** — загрузка маршрутов и позиций транспорта;
+- **геопозицию** — выбор ближайшего города и остановки;
+- **уведомления** — сообщение о прибытии автобуса;
+- **вибрацию** — сигнал ожидания;
+- **фоновую работу и wake lock** — ожидание при выключенном экране.
+
+В приложении можно выбрать город вручную, включить «Я здесь», выбрать маршрут,
+остановку и пункт «Ждать автобус». Настройки направления прокрутки и размера
+интерфейса сохраняются между запусками.
+
+## Сборка и проверка релиза 1.70
+
+Требуются JDK 17, Android Build-Tools 34 и Android Platform 33:
+
+```bash
+./run_tests.sh
+./build_apk.sh
+```
+
+Ожидаемый результат тестов стабильного исходного дерева: **319 passed, 0 failed**.
+После сборки проверьте APK:
+
+```bash
+unzip -tq versions/v1.70/KrskBusWatch-1.70.apk
+$BUILD_TOOLS/apksigner verify --print-certs versions/v1.70/KrskBusWatch-1.70.apk
+```
+
+Для публикации на GitHub используйте тег `v1.70`, файл
+`versions/v1.70/KrskBusWatch-1.70.apk` и changelog из
+`versions/v1.70/CHANGELOG.md`.
 
 ## Как это работает
 
@@ -207,8 +409,8 @@ Issues и pull requests приветствуются. Как собрать и �
 ## Публикация на GitHub
 
 Полный чек-лист, тексты для магазинов и состав пакета — в
-[docs/PUBLICATION.md](docs/PUBLICATION.md). Текст релиза 1.28 —
-[docs/releases/v1.28.md](docs/releases/v1.28.md).
+[docs/PUBLICATION.md](docs/PUBLICATION.md). Текст релиза 1.70 —
+[versions/v1.70/CHANGELOG.md](versions/v1.70/CHANGELOG.md).
 
 **About (краткое описание репозитория):**
 
