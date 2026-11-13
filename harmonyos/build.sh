@@ -27,8 +27,8 @@ echo "[2/6] aapt2 link (targetSdk 33, watch optional)"
   --java "$OUT/gen" \
   --min-sdk-version 26 \
   --target-sdk-version 33 \
-  --version-code 52 \
-  --version-name 1.28-harmony \
+  --version-code 132 \
+  --version-name 1.68-harmony \
   --no-version-vectors
 
 echo "[3/6] javac"
@@ -48,6 +48,6 @@ KS=keystore/debug.keystore
 [ -f "$KS" ] || KS=../../keystore/debug.keystore
 "$BT/apksigner" sign --ks "$KS" --ks-pass pass:android --key-pass pass:android \
   --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
-  --out dist/KrskBusWatch-harmony-1.28.apk "$OUT/app-aligned.apk"
-"$BT/apksigner" verify --print-certs dist/KrskBusWatch-harmony-1.28.apk | head -4
-ls -lh dist/KrskBusWatch-harmony-1.28.apk
+  --out dist/KrskBusWatch-harmony-1.68.apk "$OUT/app-aligned.apk"
+"$BT/apksigner" verify --print-certs dist/KrskBusWatch-harmony-1.68.apk | head -4
+ls -lh dist/KrskBusWatch-harmony-1.68.apk

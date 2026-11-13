@@ -40,6 +40,56 @@ public final class Prefs {
         sp.edit().putLong("alert_last_check", millis).apply();
     }
 
+    /** Favourite (wanted) route ids. */
+    public java.util.Set<Integer> favs() {
+        java.util.Set<Integer> out = new java.util.LinkedHashSet<>();
+        String raw = sp.getString("favs", "");
+        if (raw == null || raw.isEmpty()) return out;
+        for (String part : raw.split(",")) {
+            try {
+                out.add(Integer.parseInt(part.trim()));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return out;
+    }
+
+    public void setFavs(java.util.Set<Integer> ids) {
+        StringBuilder sb = new StringBuilder();
+        for (Integer id : ids) {
+            if (sb.length() > 0) sb.append(',');
+            sb.append(id);
+        }
+        sp.edit().putString("favs", sb.toString()).apply();
+    }
+
+    /** true = the main screen shows only the favourite routes. */
+    public boolean favOnly() {
+        return sp.getBoolean("fav_only", false);
+    }
+
+    public void setFavOnly(boolean v) {
+        sp.edit().putBoolean("fav_only", v).apply();
+    }
+
+    /** true = the app starts on the favourites list. */
+    public boolean startFavOnly() {
+        return sp.getBoolean("start_fav_only", false);
+    }
+
+    public void setStartFavOnly(boolean v) {
+        sp.edit().putBoolean("start_fav_only", v).apply();
+    }
+
+    /** true = the start screen shows the favourite routes list. */
+    public boolean startScreenFav() {
+        return sp.getBoolean("start_screen_fav", false);
+    }
+
+    public void setStartScreenFav(boolean v) {
+        sp.edit().putBoolean("start_screen_fav", v).apply();
+    }
+
     public boolean autoTrack() {
         return sp.getBoolean("auto_track", true);
     }

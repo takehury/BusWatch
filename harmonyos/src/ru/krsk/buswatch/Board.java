@@ -54,10 +54,13 @@ public final class Board {
         // bucket live vehicles by their stop index in this direction
         Map<Integer, List<Vehicle>> byOrder = new HashMap<>();
         List<Vehicle> live = new ArrayList<>();
-        for (Vehicle v : unique(vehicles)) {
+        List<Vehicle> all = unique(vehicles);
+        // the feed uses the city's local time; correct it before judging age
+        long offset = FeedClock.estimateOffset(all, nowSec);
+        for (Vehicle v : all) {
             if (v.dir != dir) continue;
             if (v.sleeping) continue;
-            if (v.timestampSec > 0 && nowSec - v.timestampSec > maxAgeSec) continue;
+            if (!FeedClock.isFresh(v, nowSec, offset, maxAgeSec)) continue;
             live.add(v);
             int o = resolveOrder(v, stops);
             if (o < 0) continue;
@@ -143,10 +146,11 @@ public final class Board {
                                                             List<Vehicle> vehicles,
                                                             int dir, long nowSec, int maxAgeSec) {
         Map<String, Integer> out = new HashMap<>();
+        long offset = FeedClock.estimateOffset(vehicles, nowSec);
         for (Vehicle v : vehicles) {
             if (v.dir != dir) continue;
             if (v.sleeping) continue;
-            if (v.timestampSec > 0 && nowSec - v.timestampSec > maxAgeSec) continue;
+            if (!FeedClock.isFresh(v, nowSec, offset, maxAgeSec)) continue;
             int o = resolveOrder(v, stops);
             if (o >= 0) out.put(v.uid.isEmpty() ? v.key() : v.uid, o);
         }

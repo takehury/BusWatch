@@ -1,6 +1,6 @@
 # Автобусы Красноярска — сборка для **HarmonyOS 2 / 3 / 4**
 
-Готовая сборка: `dist/KrskBusWatch-harmony-1.28.apk` (1,5 МБ, подписана v2+v3).
+Готовая сборка: `dist/KrskBusWatch-harmony-1.70.apk` (1,5 МБ, подписана v2+v3).
 
 Это та же программа, что и основная, но собранная с учётом HarmonyOS:
 часы не обязательны (ставится и на телефоны), нет зависимости от Google Play Services,
@@ -28,19 +28,19 @@ targetSdk 33 — наиболее совместимый с HarmonyOS 3/4.
 2. Подключите часы и установите:
 
 ```bash
-adb install -r KrskBusWatch-harmony-1.28.apk
+adb install -r KrskBusWatch-harmony-1.70.apk
 ```
 
 ### Телефоны/планшеты Huawei (HarmonyOS 2–4)
 1. Настройки → О телефоне → 7 раз по «Номер сборки».
 2. Настройки → Система → Для разработчиков → **Отладка по USB**.
-3. `adb install -r KrskBusWatch-harmony-1.28.apk`
+3. `adb install -r KrskBusWatch-harmony-1.70.apk`
 
 Если стоит другая подпись:
 
 ```bash
 adb uninstall ru.krsk.buswatch
-adb install KrskBusWatch-harmony-1.28.apk
+adb install KrskBusWatch-harmony-1.70.apk
 ```
 
 ## Совместимость
@@ -72,7 +72,7 @@ Foreground-сервис с уведомлением, опрос каждые 10 
 
 ```bash
 JAVA_HOME=/tmp/jdk17home ./build.sh
-# → dist/KrskBusWatch-harmony-1.28.apk
+# → dist/KrskBusWatch-harmony-1.70.apk
 ```
 
 Требования: JDK 17, Build-Tools 34, Platform android-33. Подпись — общий

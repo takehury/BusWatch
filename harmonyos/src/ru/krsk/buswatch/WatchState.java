@@ -12,6 +12,33 @@ public final class WatchState {
     public static final int SCREEN_STOP_MENU = 2;
     public static final int SCREEN_SETTINGS = 3;
     public static final int SCREEN_CITIES = 4;
+    public static final int SCREEN_FAV = 5;        // список желаемых маршрутов
+    public static final int SCREEN_FAV_PICK = 6;   // выбор маршрута для добавления
+    public static final int SCREEN_START = 7;      // выбор начального экрана
+
+    /** Four settings rows fit under the title; the selected one is centred. */
+    public static final int SETTINGS_VISIBLE = FavList.VISIBLE;
+
+    /** Favourites were changed since the screen was opened. */
+    public boolean favDirty;
+
+    /** Marks as they were when the add-mode was opened (to compare against). */
+    public final java.util.Set<Integer> favSnapshot = new java.util.LinkedHashSet<>();
+
+    /** Remembers the current marks: the add-mode starts from "nothing changed". */
+    public void beginFavEdit() {
+        favSnapshot.clear();
+        favSnapshot.addAll(favs);
+        favDirty = false;
+    }
+
+    /** Recomputes the "changed" flag: toggling back to the same set clears it. */
+    public void updateFavDirty() {
+        favDirty = !favSnapshot.equals(favs);
+    }
+
+    /** Screen the stop board returns to on "back" (routes or favourites). */
+    public int stopsParent = SCREEN_ROUTES;
 
     public static final int STATUS_LOADING = 0;
     public static final int STATUS_READY = 1;
@@ -42,6 +69,20 @@ public final class WatchState {
     // ---- stop menu / settings -----------------------------------------
     public final Selection menuSel = new Selection();
     public int menuParent = SCREEN_ROUTES;
+
+    // ---- favourites ----------------------------------------------------
+    /** Routes marked as wanted, keyed by route id. */
+    public final java.util.LinkedHashSet<Integer> favs = new java.util.LinkedHashSet<>();
+    public final Selection favSel = new Selection();
+    public final Selection favPickSel = new Selection();
+    /** true = the main screen shows only the favourites. */
+    public boolean favOnly;
+    /** true = the app starts on the favourites list instead of all routes. */
+    public boolean startFavOnly;
+    /** true = the starting screen is the favourites list (saved choice). */
+    public boolean startScreenFav;
+    /** Selection on the start-screen screen: 0 = all routes, 1 = favourites. */
+    public final Selection startSel = new Selection();
 
     // ---- cities --------------------------------------------------------
     public final List<City> cities = new ArrayList<>();
@@ -78,6 +119,11 @@ public final class WatchState {
     // ------------------------------------------------------------------ routes
 
     public void setRoutes(List<RouteInfo> list) {
+        routeSel.setVisible(RouteList.VISIBLE);
+        favSel.setVisible(FavList.VISIBLE);
+        favSel.setCentreSlot(FavList.SELECTED_SLOT);
+        favPickSel.setVisible(FavList.VISIBLE);
+        favPickSel.setCentreSlot(FavList.SELECTED_SLOT);
         routes.clear();
         if (list != null) routes.addAll(list);
         List<String> keys = new ArrayList<>();
@@ -119,6 +165,13 @@ public final class WatchState {
         } catch (NumberFormatException ignored) {
         }
         return null;
+    }
+
+    /** Closes the stop board and returns to the list it was opened from. */
+    public void closeStops() {
+        screen = stopsParent == SCREEN_FAV ? SCREEN_FAV : SCREEN_ROUTES;
+        routeStops = null;
+        board = null;
     }
 
     /** Opens the stops screen for the given route and direction. */
@@ -168,16 +221,92 @@ public final class WatchState {
     public void openStopMenu() {
         screen = SCREEN_STOP_MENU;
         menuParent = SCREEN_STOPS;
-        setMenuSize(3);
-    }
-
-    public void openSettings() {
-        screen = SCREEN_SETTINGS;
-        menuParent = SCREEN_ROUTES;
         setMenuSize(4);
     }
 
+    /** True when the route of the open stop board is a favourite. */
+    public boolean currentRouteIsFav() {
+        return selectedRoute != null && favs.contains(selectedRoute.id);
+    }
+
+    public void openSettings() {
+        // remember where we came from: the settings close back to that screen
+        menuParent = (screen == SCREEN_FAV || screen == SCREEN_FAV_PICK)
+                ? SCREEN_FAV : SCREEN_ROUTES;
+        screen = SCREEN_SETTINGS;
+        setMenuSize(5);
+        // the settings list scrolls like the route list (4 rows on screen),
+        // but without empty slots: every item is reachable without blanks
+        menuSel.setVisible(SETTINGS_VISIBLE);
+        // the selected row always sits on the display centre
+        menuSel.setCentreSlot(FavList.SELECTED_SLOT);
+        menuSel.setOverScroll(true);
+    }
+
     /** City picker: "Авто" + all supported cities. */
+    /** Opens the favourites list. */
+    public void openFavourites() {
+        screen = SCREEN_FAV;
+        menuParent = SCREEN_ROUTES;
+        refreshFavList();
+        beginFavEdit();
+    }
+
+    /** Opens the start-screen chooser. */
+    public void openStartScreen() {
+        screen = SCREEN_START;
+        menuParent = SCREEN_SETTINGS;
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        keys.add("all");
+        keys.add("fav");
+        startSel.setKeys(keys);
+        startSel.select(startScreenFav ? 1 : 0);
+    }
+
+    /** Opens the "add route" picker with all routes of the current city. */
+    public void openFavPicker() {
+        screen = SCREEN_FAV_PICK;
+        menuParent = SCREEN_FAV;
+        beginFavEdit();
+        refreshFavPicker();
+        favPickSel.select(0);
+    }
+
+    /**
+     * Route list of the add-mode: the routes that already carry a tick come
+     * first, the rest keep the usual order. Called again after every toggle so
+     * the list re-sorts itself.
+     */
+    public void refreshFavPicker() {
+        List<String> keys = new ArrayList<>();
+        for (RouteInfo r : routes) {
+            if (favs.contains(r.id)) keys.add(String.valueOf(r.id));
+        }
+        for (RouteInfo r : routes) {
+            if (!favs.contains(r.id)) keys.add(String.valueOf(r.id));
+        }
+        // the cursor stays on its row: it must not travel with a route that
+        // just changed its tick (the list re-sorts under the cursor)
+        favPickSel.setKeysKeepPosition(keys);
+    }
+
+    /** Rebuilds the favourites list: only the marked routes. */
+    public void refreshFavList() {
+        List<String> keys = new ArrayList<>();
+        for (RouteInfo r : routes) {
+            if (favs.contains(r.id)) keys.add(String.valueOf(r.id));
+        }
+        favSel.setKeys(keys);
+    }
+
+    /** Key of the trailing "add route" entry. */
+    public static final String ADD_KEY = "+add";
+
+    /** true when the given list index is the "add route" entry (legacy). */
+    public boolean isAddEntry(int index) {
+        return false;
+    }
+
     public void openCities() {
         screen = SCREEN_CITIES;
         menuParent = SCREEN_SETTINGS;
@@ -209,6 +338,11 @@ public final class WatchState {
         // reset the parent chain: closing the city picker returns to settings,
         // closing settings must then return to the route list (not loop back)
         menuParent = SCREEN_ROUTES;
+    }
+
+    /** True when the favourites list is currently on screen. */
+    public boolean inFavourites() {
+        return screen == SCREEN_FAV || screen == SCREEN_FAV_PICK;
     }
 
     private void setMenuSize(int n) {
