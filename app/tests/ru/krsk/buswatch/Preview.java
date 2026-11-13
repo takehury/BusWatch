@@ -137,6 +137,7 @@ public final class Preview {
         preview(ui, denied, outDir + "/08-denied.png");
 
         renderSpb(fixtures, outDir);
+        renderFavourites(catalog, outDir);
         System.out.println("previews written to " + outDir);
     }
 
@@ -164,6 +165,77 @@ public final class Preview {
         g.dispose();
         ImageIO.write(dst, "png", new File(out));
         System.out.println("== " + new File(out).getName() + " (scaled " + size + "px)");
+    }
+
+
+    /** Screens for the favourites list. */
+    private static void renderFavourites(Catalog catalog, String outDir) throws Exception {
+        WatchUi ui = new WatchUi(2f, 2f, SIZE, SIZE);
+        WatchState s = new WatchState();
+        s.status = WatchState.STATUS_READY;
+        s.city = new City(3, "krasnoyarsk", "Красноярск", 56.01, 92.85, 160, 999);
+        s.setRoutes(catalog.groundRoutes());
+        List<RouteInfo> list = s.routes;
+        if (list.size() > 2) {
+            s.favs.add(list.get(1).id);
+            s.favs.add(list.get(4).id);
+        }
+        s.openFavourites();
+        s.gpsFix = true;
+        preview(ui, s, outDir + "/19-favourites.png");
+
+        // empty favourites: faded heart + hint
+        WatchState empty = new WatchState();
+        empty.status = WatchState.STATUS_READY;
+        empty.city = s.city;
+        empty.setRoutes(catalog.groundRoutes());
+        empty.openFavourites();
+        empty.gpsFix = true;
+        preview(ui, empty, outDir + "/27-favourites-empty.png");
+
+        // the main route list with a favourite marked
+        WatchState main = new WatchState();
+        main.status = WatchState.STATUS_READY;
+        main.city = new City(3, "krasnoyarsk", "Красноярск", 56.01, 92.85, 160, 999);
+        main.setRoutes(catalog.groundRoutes());
+        if (main.routes.size() > 3) main.favs.add(main.routes.get(2).id);
+        main.routeSel.select(2);
+        preview(ui, main, outDir + "/23-routes-fav.png");
+
+        // manual position: the heart must turn yellow
+        s.locationMode = WatchState.LOC_MANUAL;
+        s.manualLat = 56.0;
+        s.manualLon = 92.9;
+        s.manualStopName = "Остановка";
+        preview(ui, s, outDir + "/22-favourites-manual.png");
+        s.locationMode = WatchState.LOC_AUTO;
+
+        s.openFavPicker();
+        preview(ui, s, outDir + "/20-fav-picker.png");
+        s.closeMenu();
+
+        s.openSettings();
+        preview(ui, s, outDir + "/21-settings-fav.png");
+
+        // the starting-screen chooser
+        s.startScreenFav = true;
+        s.openStartScreen();
+        preview(ui, s, outDir + "/25-start-screen.png");
+
+        // manual position: the GPS dot turns yellow
+        s.locationMode = WatchState.LOC_MANUAL;
+        s.manualLat = 56.0;
+        s.manualLon = 92.9;
+        s.manualStopName = "Остановка";
+        preview(ui, s, outDir + "/26-start-screen-manual.png");
+        s.locationMode = WatchState.LOC_AUTO;
+        s.closeMenu();
+
+        // the favourites list with the selection in the middle
+        s.favSel.select(0);
+        s.refreshFavList();
+        s.favSel.select(0);
+        preview(ui, s, outDir + "/24-fav-selected.png");
     }
 
     /** Screens for Saint Petersburg, used for marketing shots. */
@@ -298,6 +370,38 @@ public final class Preview {
                             new float[]{0f, 1f}, new Color[]{new Color(op.color, true), new Color(op.color2, true)}));
                     g.fillRect(0, 0, SIZE, SIZE);
                     break;
+                case UiFrame.POLYGON: {
+                    if (op.pts == null || op.pts.length < 6) break;
+                    java.awt.geom.Path2D.Float poly = new java.awt.geom.Path2D.Float();
+                    poly.moveTo(op.pts[0], op.pts[1]);
+                    for (int i = 2; i + 1 < op.pts.length; i += 2) {
+                        poly.lineTo(op.pts[i], op.pts[i + 1]);
+                    }
+                    poly.closePath();
+                    g.setColor(color);
+                    g.fill(poly);
+                    break;
+                }
+                case UiFrame.HEART: {
+                    float k = op.w / 9f;
+                    float a = UiFrame.HEART_ASPECT;
+                    java.awt.geom.Path2D.Float heart = new java.awt.geom.Path2D.Float();
+                    heart.moveTo(op.x, op.y + 9f * k);
+                    heart.curveTo(op.x - 9f * a * k, op.y + 2.5f * k,
+                            op.x - 9f * a * k, op.y - 9f * k, op.x, op.y - 3f * k);
+                    heart.curveTo(op.x + 9f * a * k, op.y - 9f * k,
+                            op.x + 9f * a * k, op.y + 2.5f * k, op.x, op.y + 9f * k);
+                    heart.closePath();
+                    g.setColor(color);
+                    g.fill(heart);
+                    break;
+                }
+                case UiFrame.TRIANGLE: {
+                    g.setColor(color);
+                    g.fillPolygon(new int[]{(int) op.x, (int) op.x2, (int) op.w},
+                            new int[]{(int) op.y, (int) op.y2, (int) op.h}, 3);
+                    break;
+                }
                 case UiFrame.TEXT:
                     Font font = new Font("SansSerif", op.bold ? Font.BOLD : Font.PLAIN, 12)
                             .deriveFont(op.size);

@@ -38,11 +38,27 @@ public final class WatchView extends View implements Metrics {
         void onMenuActivate(int index);
 
         void onCityChosen(int index);
+
+        void onOpenFavourites();
+
+        void onFavActivate(int index);
+
+        void onFavPickActivate(int index);
+
+        void onFavSave();
+
+        void onFavAdd();
+
+        void onStartChosen(int index);
     }
 
     private static final float DESIGN = Displays.DESIGN;
     private static final float ROUTES_TOP_DP = 29.5f;
     private static final float STOPS_TOP_DP = 68f;
+    /** Favourites list starts below the header buttons. */
+    private static final float FAV_TOP_DP = 63f;
+    /** Settings list starts below the title (same as WatchUi.SETTINGS_TOP). */
+    private static final float SETTINGS_TOP_DP = 63f;
     private static final float LONG_PRESS_MS = 500f;
 
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -155,6 +171,52 @@ public final class WatchView extends View implements Metrics {
                     stroke.setShader(null);
                     canvas.drawLine(op.x, op.y, op.x2, op.y2, stroke);
                     break;
+                case UiFrame.POLYGON: {
+                    if (op.pts == null || op.pts.length < 6) break;
+                    Path poly = new Path();
+                    poly.moveTo(op.pts[0], op.pts[1]);
+                    for (int i = 2; i + 1 < op.pts.length; i += 2) {
+                        poly.lineTo(op.pts[i], op.pts[i + 1]);
+                    }
+                    poly.close();
+                    fill.setColor(op.color);
+                    fill.setStyle(Paint.Style.FILL);
+                    fill.setShader(null);
+                    canvas.drawPath(poly, fill);
+                    break;
+                }
+                case UiFrame.HEART: {
+                    Path h = new Path();
+                    // classic heart: two lobes with a smooth S-curve into the tip
+                    float r = op.w;
+                    float k = r / 9f;
+                    float a = UiFrame.HEART_ASPECT;
+                    h.moveTo(op.x, op.y + 9f * k);
+                    h.cubicTo(op.x - 9f * a * k, op.y + 2.5f * k,
+                            op.x - 9f * a * k, op.y - 9f * k,
+                            op.x - 0f, op.y - 3f * k);
+                    h.cubicTo(op.x + 9f * a * k, op.y - 9f * k,
+                            op.x + 9f * a * k, op.y + 2.5f * k,
+                            op.x, op.y + 9f * k);
+                    h.close();
+                    fill.setColor(op.color);
+                    fill.setStyle(Paint.Style.FILL);
+                    fill.setShader(null);
+                    canvas.drawPath(h, fill);
+                    break;
+                }
+                case UiFrame.TRIANGLE: {
+                    Path tri = new Path();
+                    tri.moveTo(op.x, op.y);
+                    tri.lineTo(op.x2, op.y2);
+                    tri.lineTo(op.w, op.h);
+                    tri.close();
+                    fill.setColor(op.color);
+                    fill.setStyle(Paint.Style.FILL);
+                    fill.setShader(null);
+                    canvas.drawPath(tri, fill);
+                    break;
+                }
                 case UiFrame.RADIAL:
                     fill.setShader(new RadialGradient(op.x, op.y, op.w, op.color, op.color2,
                             Shader.TileMode.CLAMP));
@@ -197,6 +259,12 @@ public final class WatchView extends View implements Metrics {
                 return state.menuSel;
             case WatchState.SCREEN_CITIES:
                 return state.citySel;
+            case WatchState.SCREEN_FAV:
+                return state.favSel;
+            case WatchState.SCREEN_FAV_PICK:
+                return state.favPickSel;
+            case WatchState.SCREEN_START:
+                return state.startSel;
             default:
                 return state.routeSel;
         }
@@ -233,14 +301,13 @@ public final class WatchView extends View implements Metrics {
             case KeyEvent.KEYCODE_VOLUME_DOWN:
                 moveSelection(1);
                 return true;
-            // the watch's lower hardware button (and MENU) opens the context
-            // menu: settings on the route list, stop actions on the board
+            // the watch's lower hardware button (and MENU): the Activity decides
+            // (settings from the route list and from the favourites)
             case KeyEvent.KEYCODE_STEM_1:
             case KeyEvent.KEYCODE_STEM_2:
             case KeyEvent.KEYCODE_STEM_3:
             case KeyEvent.KEYCODE_MENU:
-                showContextMenuFromKey();
-                return true;
+                return super.onKeyDown(keyCode, event);
             case KeyEvent.KEYCODE_DPAD_LEFT:
             case KeyEvent.KEYCODE_DPAD_RIGHT:
                 if (state != null && state.screen == WatchState.SCREEN_STOPS) {
@@ -255,6 +322,10 @@ public final class WatchView extends View implements Metrics {
                 activate();
                 return true;
             case KeyEvent.KEYCODE_BACK:
+                if (state != null && state.inFavourites()) {
+                    // the Activity opens the settings from the favourites
+                    return super.onKeyDown(keyCode, event);
+                }
                 if (state != null && state.screen != WatchState.SCREEN_ROUTES) {
                     back();
                     return true;
@@ -336,6 +407,18 @@ public final class WatchView extends View implements Metrics {
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
                 if (listener != null) listener.onCityChosen(state.citySel.selectedIndex());
                 return;
+            case WatchState.SCREEN_FAV:
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                if (listener != null) listener.onFavActivate(state.favSel.selectedIndex());
+                return;
+            case WatchState.SCREEN_FAV_PICK:
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                if (listener != null) listener.onFavPickActivate(state.favPickSel.selectedIndex());
+                return;
+            case WatchState.SCREEN_START:
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                if (listener != null) listener.onStartChosen(state.startSel.selectedIndex());
+                return;
             default:
                 RouteInfo r = state.routeAt(state.routeSel.selectedIndex());
                 if (r != null) {
@@ -391,18 +474,35 @@ public final class WatchView extends View implements Metrics {
 
     /**
      * Keep edge swipes for the app: otherwise the system back gesture steals
-     * the swipe and can pop the whole activity.
+     * the swipe and can pop the whole activity. On Huawei watch faces the edge
+     * gesture is aggressive, so the excluded strip is as wide as the platform
+     * allows (200 dp per edge is the framework cap).
      */
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         super.onLayout(changed, left, top, right, bottom);
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            int edge = Math.max(1, (int) dp(30f));
-            java.util.List<android.graphics.Rect> rects = new java.util.ArrayList<>(2);
-            rects.add(new android.graphics.Rect(0, 0, Math.min(edge, getWidth()), getHeight()));
-            rects.add(new android.graphics.Rect(Math.max(0, getWidth() - edge), 0,
-                    getWidth(), getHeight()));
+        applyGestureExclusion();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasWindowFocus) {
+        super.onWindowFocusChanged(hasWindowFocus);
+        if (hasWindowFocus) applyGestureExclusion();
+    }
+
+    /** Reserves both screen edges for the app's own swipe handling. */
+    public void applyGestureExclusion() {
+        if (android.os.Build.VERSION.SDK_INT < 29) return;
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0 || h <= 0) return;
+        int edge = Math.min((int) dp(96f), Math.max(1, w / 4));
+        java.util.List<android.graphics.Rect> rects = new java.util.ArrayList<>(2);
+        rects.add(new android.graphics.Rect(0, 0, edge, h));
+        rects.add(new android.graphics.Rect(Math.max(0, w - edge), 0, w, h));
+        try {
             setSystemGestureExclusionRects(rects);
+        } catch (Exception ignored) {
         }
     }
 
@@ -472,6 +572,14 @@ public final class WatchView extends View implements Metrics {
                     return true;
                 }
 
+                // Swipe to the LEFT on the main screen opens the favourites.
+                boolean swipeLeft = totalX < -dp(24f) && Math.abs(totalX) > Math.abs(totalY) * 1.25f;
+                if (state.screen == WatchState.SCREEN_ROUTES && swipeLeft) {
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    if (listener != null) listener.onOpenFavourites();
+                    return true;
+                }
+
                 // vertical flick: keep scrolling with decaying speed
                 if (Math.abs(totalY) > Math.abs(totalX) * 1.2f && dist > dp(16f)) {
                     startInertia(velocityRowsPerSecond(e));
@@ -504,7 +612,9 @@ public final class WatchView extends View implements Metrics {
                 || state.status == WatchState.STATUS_EMPTY) {
             return;
         }
-        if (state.screen == WatchState.SCREEN_ROUTES) {
+        if (state.screen == WatchState.SCREEN_ROUTES
+                || state.screen == WatchState.SCREEN_FAV
+                || state.screen == WatchState.SCREEN_FAV_PICK) {
             performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             if (listener != null) listener.onOpenSettings();
         } else if (state.screen == WatchState.SCREEN_STOPS) {
@@ -543,6 +653,15 @@ public final class WatchView extends View implements Metrics {
                 return;
             case WatchState.SCREEN_CITIES:
                 tapCities(y);
+                return;
+            case WatchState.SCREEN_FAV:
+                tapFavourites(x, y);
+                return;
+            case WatchState.SCREEN_FAV_PICK:
+                tapFavPicker(x, y);
+                return;
+            case WatchState.SCREEN_START:
+                tapStartScreen(x, y);
                 return;
             case WatchState.SCREEN_STOP_MENU:
             case WatchState.SCREEN_SETTINGS:
@@ -618,6 +737,69 @@ public final class WatchView extends View implements Metrics {
         if (listener != null) listener.onCityChosen(idx);
     }
 
+    /** Taps inside the favourites list or its header. */
+    private void tapFavourites(float x, float y) {
+        float yDp = y / density;
+        float xDp = x / density;
+        // header buttons: back (left half) and add (right half)
+        if (yDp >= 28f && yDp <= 64f && Math.abs(xDp - 116.5f) <= 74f) {
+            if (xDp < 116.5f) {
+                if (state.favDirty && listener != null) listener.onFavSave();
+                else backFromGesture();
+            } else {
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                if (listener != null) listener.onFavAdd();
+            }
+            return;
+        }
+        int row = FavList.rowAt(FAV_TOP_DP, yDp);
+        if (row < 0) return;
+        int idx = state.favSel.topIndex() + row;
+        if (idx < 0 || idx >= state.favSel.size()) return;
+        state.favSel.selectRow(row);
+        invalidate();
+        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        if (listener != null) listener.onFavActivate(idx);
+    }
+
+    /** Taps inside the "add route" picker. */
+    private void tapFavPicker(float x, float y) {
+        float yDp = y / density;
+        float xDp = x / density;
+        if (yDp >= 28f && yDp <= 64f && Math.abs(xDp - 116.5f) <= 74f) {
+            if (xDp < 116.5f && state.favDirty && listener != null) {
+                // "сохранить": commit the marks and return to the favourites
+                listener.onFavSave();
+            } else {
+                backFromGesture();
+            }
+            return;
+        }
+        int row = FavList.rowAt(FAV_TOP_DP, yDp);
+        if (row < 0) return;
+        int idx = state.favPickSel.topIndex() + row;
+        if (idx < 0 || idx >= state.routes.size()) return;
+        state.favPickSel.selectRow(row);
+        invalidate();
+        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        if (listener != null) listener.onFavPickActivate(idx);
+    }
+
+    /** Taps on the starting-screen chooser. */
+    private void tapStartScreen(float x, float y) {
+        float yDp = y / density;
+        for (int i = 0; i < 2; i++) {
+            float rowTop = 62f + i * 40f;
+            if (yDp >= rowTop && yDp < rowTop + 36f) {
+                state.startSel.select(i);
+                invalidate();
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                if (listener != null) listener.onStartChosen(i);
+                return;
+            }
+        }
+    }
+
     private void tapRoutes(float x, float y) {
         float yDp = y / density;
         int row = RouteList.rowAt(ROUTES_TOP_DP, yDp);
@@ -633,8 +815,18 @@ public final class WatchView extends View implements Metrics {
 
     private void tapMenu(float y) {
         float yDp = y / density;
-        float step = state.screen == WatchState.SCREEN_SETTINGS ? 34f : 40f;
-        int idx = (int) Math.floor((yDp - 76f) / step);
+        int idx;
+        if (state.screen == WatchState.SCREEN_SETTINGS) {
+            // settings scroll like a list: the row index comes from the geometry
+            int row = FavList.rowAt(SETTINGS_TOP_DP, yDp);
+            if (row < 0) return;
+            idx = state.menuSel.topIndex() + row;
+        } else {
+            // Stop-menu rows are 36 dp apart (the renderer uses stepDp=36),
+            // while settings have their own fisheye geometry.
+            float step = state.screen == WatchState.SCREEN_STOP_MENU ? 36f : 40f;
+            idx = (int) Math.floor((yDp - 76f) / step);
+        }
         if (idx >= 0 && idx < state.menuSel.size()) {
             state.menuSel.select(idx);
             invalidate();

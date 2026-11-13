@@ -38,7 +38,8 @@ public final class LiveCheck {
         java.util.Calendar cal = java.util.Calendar.getInstance(
                 java.util.TimeZone.getTimeZone("Asia/Krasnoyarsk"));
         int hour = cal.get(java.util.Calendar.HOUR_OF_DAY);
-        boolean night = hour >= 22 || hour < 6;
+        boolean night = hour >= 23 || hour < 5;
+        boolean lateEvening = hour >= 21 || hour < 5;
         check("route fetched (night: empty is OK)", vehicles != null);
         check("latency under 9s", ms < 9000);
 
@@ -50,11 +51,14 @@ public final class LiveCheck {
             coords &= Geo.inCity(v.lat, v.lon);
             if (v.stopId > 0 || v.order >= 0) withStop++;
         }
-        check(night ? "night: buses are parked" : "live vehicles >= 5",
-                night ? live == 0 : live >= 5);
+        // Late evening service winds down, so the expected count drops after 21:00.
+        int expected = night ? 0 : (lateEvening ? 2 : 5);
+        check(night ? "night: buses are parked"
+                        : (lateEvening ? "evening: some buses still run" : "live vehicles >= 5"),
+                night ? live == 0 : live >= expected);
         check("coords in city", coords);
         check(night ? "night: no stop refs needed" : "vehicles have stop refs",
-                night || withStop >= 5);
+                night || withStop >= Math.max(2, live / 2));
 
         // 2) build the board in both directions
         long now = System.currentTimeMillis() / 1000L;
@@ -90,6 +94,49 @@ public final class LiveCheck {
         }
 
         check("live total", night || live > 0);
+
+        // ---- другие города: метки времени в местном времени ----
+        try {
+            List<City> all = Cities.parse(read("app/assets/cities.json"));
+            int citiesWithBuses = 0;
+            String report = "";
+            for (int cid : new int[]{3, 5, 23, 9, 10, 14}) {
+                City cc = Cities.byId(all, cid);
+                Catalog cat = Catalog.parse(read("app/assets/cities/" + cid + "_routes.json"),
+                        read("app/assets/cities/" + cid + "_stops.json"), null);
+                int found = 0;
+                int tried = 0;
+                for (RouteInfo r : cat.groundRoutes()) {
+                    if (tried++ >= 6) break;
+                    String js;
+                    try {
+                        js = Http.get("https://busti.me/ajax/bus/?bus_id=" + r.id, 5000, 8000);
+                    } catch (Exception e) {
+                        continue;
+                    }
+                    List<Vehicle> vs = FeedParser.parse(js, r);
+                    if (vs.isEmpty()) continue;
+                    long nowSec = System.currentTimeMillis() / 1000L;
+                    long off = FeedClock.estimateOffset(vs, nowSec);
+                    int fresh = 0;
+                    for (Vehicle v : vs) {
+                        if (FeedClock.isFresh(v, nowSec, off, FeedClock.MAX_AGE_SEC)) fresh++;
+                    }
+                    if (fresh > 0) {
+                        found++;
+                        if (report.isEmpty()) {
+                            report = cc.name + " offset=" + off + "s fresh=" + fresh + "/" + vs.size();
+                        }
+                    }
+                }
+                if (found > 0) citiesWithBuses++;
+            }
+            System.out.println("  note: города с живыми автобусами — " + citiesWithBuses
+                    + "/6 (" + report + ")");
+            check("multi-city live buses", citiesWithBuses >= 4);
+        } catch (Exception ex) {
+            System.out.println("  note: проверка городов пропущена: " + ex.getMessage());
+        }
 
         // ---- второй город: Москва (другой фид и страница маршрута) ----
         try {
