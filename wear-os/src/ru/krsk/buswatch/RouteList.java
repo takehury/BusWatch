@@ -43,6 +43,18 @@ public final class RouteList {
         return FocalList.scale(visibleRow);
     }
 
+    /**
+     * Scale relative to the selected row: the chosen route is always the
+     * biggest, which keeps both the route picker and the favourites readable
+     * whatever the scroll position.
+     */
+    public static float scaleFor(int visibleRow, int selectedRow) {
+        if (visibleRow == selectedRow) return 1f;
+        int d = Math.abs(visibleRow - selectedRow);
+        if (d == 1) return 0.88f;
+        return 0.76f;
+    }
+
     public static float rowWidthDp(float maxWidthDp, int visibleRow) {
         return FocalList.rowWidthDp(maxWidthDp, visibleRow);
     }

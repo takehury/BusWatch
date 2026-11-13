@@ -31,15 +31,30 @@ public final class RouteInfo {
 
     /** Destination for a given direction bit (0/1) taken from the route title. */
     public String destination(int dir) {
-        String t = title.trim();
-        if (t.isEmpty()) return "";
-        String[] parts = t.split("\\s*(?:↔|⇄|—|–|-)+\\s*");
-        if (parts.length >= 2) {
-            String a = parts[0].trim();
-            String b = parts[parts.length - 1].trim();
-            return dir == 0 ? b : a;
+        String[] parts = endpoints();
+        if (parts == null) return Text.html(title).trim();
+        return dir == 0 ? parts[1] : parts[0];
+    }
+
+    /**
+     * Splits the route title into its two terminal stops.
+     *
+     * Bustime titles look like "Вокзал &harr; пос. Северный"; the separator may
+     * also be a plain hyphen, which must not split a name like
+     * "Красноярск-Северный". Returns null when the title has no separator.
+     */
+    public String[] endpoints() {
+        String t = Text.html(title).trim();
+        if (t.isEmpty()) return null;
+        String[] parts = t.split("\\s*(?:↔|⇄|⟷|→|←|—|–|\\|;)\\s*");
+        if (parts.length < 2) {
+            parts = t.split("\\s+-\\s+");
         }
-        return t;
+        if (parts.length < 2) return null;
+        String a = parts[0].trim();
+        String b = parts[parts.length - 1].trim();
+        if (a.isEmpty() || b.isEmpty()) return null;
+        return new String[]{a, b};
     }
 
     /** True for routes the feed can actually provide vehicles for. */
