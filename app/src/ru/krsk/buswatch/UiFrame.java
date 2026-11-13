@@ -20,6 +20,15 @@ public final class UiFrame {
     public static final int TEXT = 8;
     public static final int CLIP_CIRCLE = 9;
     public static final int RESTORE = 10;
+    /** Filled triangle (used for the vector heart, which must not be an emoji). */
+    public static final int TRIANGLE = 11;
+    /** Smooth heart drawn from cubic curves (r = half width). */
+    public static final int HEART = 12;
+    /** Filled polygon given as x,y pairs — used for the solid heart outline. */
+    public static final int POLYGON = 13;
+
+    /** Hearts are drawn a touch wider than tall; both renderers share this. */
+    public static final float HEART_ASPECT = 1.18f;
 
     public static final int ALIGN_LEFT = 0;
     public static final int ALIGN_CENTER = 1;
@@ -98,6 +107,37 @@ public final class UiFrame {
         ops.add(op);
     }
 
+    /** Smooth heart: two bezier lobes flowing into a point, no visible seams. */
+    public void heart(float cx, float cy, float r, int color) {
+        Op op = new Op(HEART);
+        op.x = cx;
+        op.y = cy;
+        op.w = r;
+        op.color = color;
+        ops.add(op);
+    }
+
+    /** Solid filled polygon: one shape, so the heart has no gaps inside. */
+    public void polygon(float[] xy, int color) {
+        Op op = new Op(POLYGON);
+        op.pts = xy;
+        op.color = color;
+        ops.add(op);
+    }
+
+    /** Filled triangle; the heart is built from two circles plus one of these. */
+    public void triangle(float x1, float y1, float x2, float y2, float x3, float y3, int color) {
+        Op op = new Op(TRIANGLE);
+        op.x = x1;
+        op.y = y1;
+        op.x2 = x2;
+        op.y2 = y2;
+        op.w = x3;
+        op.h = y3;
+        op.color = color;
+        ops.add(op);
+    }
+
     public void radial(float cx, float cy, float r, int inner, int outer) {
         Op op = new Op(RADIAL);
         op.x = cx;
@@ -145,6 +185,8 @@ public final class UiFrame {
         public int align;
         public boolean bold;
         public String text = "";
+        /** Polygon vertices as x,y pairs (POLYGON only). */
+        public float[] pts;
 
         Op(int type) {
             this.type = type;

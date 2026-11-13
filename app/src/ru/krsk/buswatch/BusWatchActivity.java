@@ -45,6 +45,7 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
     private boolean gotFix;
     private boolean cityLoading;
     private List<City> cities = new ArrayList<>();
+    private List<RouteInfo> catalogRoutes = new ArrayList<>();
     private City city;
     private boolean cityAuto = true;
 
@@ -85,6 +86,12 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
 
         view = new WatchView(this);
         view.setListener(this);
+        view.post(new Runnable() {
+            @Override
+            public void run() {
+                view.applyGestureExclusion();
+            }
+        });
         view.setState(state);
         setContentView(view);
 
@@ -141,10 +148,15 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
                             state.cities.addAll(loaded);
                             state.city = target;
                             state.cityAuto = auto;
-                            state.setRoutes(catalog.groundRoutes());
+                            catalogRoutes = catalog.groundRoutes();
+                            applyRouteFilter();
                             state.status = state.routes.isEmpty()
                                     ? WatchState.STATUS_EMPTY : WatchState.STATUS_READY;
                             catalogReady = true;
+                            // the start screen: all routes or the favourites list
+                            if (state.startScreenFav && !state.favs.isEmpty()) {
+                                state.openFavourites();
+                            }
                             view.invalidate();
                         }
                     });
@@ -194,10 +206,14 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
                             state.city = target;
                             state.cityAuto = auto;
                             state.refreshing = false;
-                            state.setRoutes(catalog.groundRoutes());
+                            catalogRoutes = catalog.groundRoutes();
+                            applyRouteFilter();
                             state.status = state.routes.isEmpty()
                                     ? WatchState.STATUS_EMPTY : WatchState.STATUS_READY;
                             catalogReady = true;
+                            if (state.startScreenFav && !state.favs.isEmpty()) {
+                                state.openFavourites();
+                            }
                             view.invalidate();
                             schedule();
                         }
@@ -230,6 +246,11 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
     private void applyPrefsToState() {
         state.autoTrack = prefs.autoTrack();
         state.alertsEnabled = prefs.alertsEnabled();
+        state.favs.clear();
+        state.favs.addAll(prefs.favs());
+        state.favOnly = prefs.favOnly();
+        state.startFavOnly = prefs.startFavOnly();
+        state.startScreenFav = prefs.startScreenFav();
         state.locationMode = prefs.locationMode();
         if (prefs.hasManualLocation()) {
             state.manualLat = prefs.manualLat();
@@ -283,6 +304,20 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
         syncAlertState();
         warnIfAlertWasFrozen();
         schedule();
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        // The system edge gesture / side button may leave the app from a
+        // sub-screen; come back to the main list instead of a half-open route.
+        if (state.screen != WatchState.SCREEN_ROUTES) {
+            state.screen = WatchState.SCREEN_ROUTES;
+            state.routeStops = null;
+            state.board = null;
+            state.favDirty = false;
+            view.invalidate();
+        }
+        super.onUserLeaveHint();
     }
 
     @Override
@@ -344,6 +379,12 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
     @Override
     public void onRouteChosen(RouteInfo route) {
         if (route == null) return;
+        // remember where the board was opened from, so "back" returns there
+        if (state.screen == WatchState.SCREEN_FAV) {
+            state.stopsParent = WatchState.SCREEN_FAV;
+        } else if (state.screen != WatchState.SCREEN_STOPS) {
+            state.stopsParent = WatchState.SCREEN_ROUTES;
+        }
         state.selectRoute(route);
         state.openRoute(route, 0);
         state.status = WatchState.STATUS_READY;
@@ -380,6 +421,92 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
         } else if (state.screen == WatchState.SCREEN_SETTINGS) {
             onSettingsActivate(index);
         }
+    }
+
+    @Override
+    public void onStartChosen(int index) {
+        boolean fav = index == 1;
+        state.startFavOnly = fav;
+        state.startScreenFav = fav;
+        prefs.setStartScreenFav(fav);
+        prefs.setStartFavOnly(fav);
+        state.screen = WatchState.SCREEN_SETTINGS;
+        view.invalidate();
+    }
+
+    @Override
+    public void onOpenFavourites() {
+        state.openFavourites();
+        view.invalidate();
+    }
+
+    @Override
+    public void onFavActivate(int index) {
+        if (state.isAddEntry(index)) {
+            state.openFavPicker();
+            view.invalidate();
+            return;
+        }
+        // a favourite route opens its stop board, like in the main list
+        RouteInfo r = state.routeById(state.favSel.keyAt(index));
+        if (r == null) {
+            view.invalidate();
+            return;
+        }
+        onRouteChosen(r);
+    }
+
+    @Override
+    public void onFavPickActivate(int index) {
+        // the row index refers to the sorted list, so resolve it through the key
+        RouteInfo r = state.routeById(state.favPickSel.keyAt(index));
+        if (r == null) return;
+        // tapping toggles the mark: adding or removing the route
+        if (state.favs.contains(r.id)) state.favs.remove(r.id);
+        else state.favs.add(r.id);
+        saveFavourites();
+        state.updateFavDirty();
+        state.refreshFavList();
+        state.refreshFavPicker();
+        view.invalidate();
+    }
+
+    @Override
+    public void onFavAdd() {
+        state.openFavPicker();
+        view.invalidate();
+    }
+
+    @Override
+    public void onFavSave() {
+        saveFavourites();
+        state.favDirty = false;
+        if (state.screen == WatchState.SCREEN_FAV_PICK) {
+            // finishing the add-mode returns to the favourites list
+            state.screen = WatchState.SCREEN_FAV;
+            state.refreshFavList();
+        } else {
+            state.screen = WatchState.SCREEN_ROUTES;
+            applyRouteFilter();
+        }
+        view.invalidate();
+    }
+
+    private void saveFavourites() {
+        prefs.setFavs(state.favs);
+    }
+
+    /** Applies the "favourites only" filter to the route list. */
+    private void applyRouteFilter() {
+        if (!state.favOnly) {
+            state.setRoutes(catalogRoutes);
+            return;
+        }
+        List<RouteInfo> only = new ArrayList<>();
+        for (RouteInfo r : catalogRoutes) {
+            if (state.favs.contains(r.id)) only.add(r);
+        }
+        state.setRoutes(only);
     }
 
     @Override
@@ -434,7 +561,21 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
                 view.invalidate();
                 break;
             }
-            case 2:
+            case 2: { // add or remove the route from the favourites
+                if (state.selectedRoute == null) break;
+                int id = state.selectedRoute.id;
+                if (state.favs.contains(id)) {
+                    state.favs.remove(id);
+                } else {
+                    state.favs.add(id);
+                }
+                saveFavourites();
+                state.updateFavDirty();
+                state.refreshFavList();
+                view.invalidate();
+                break;
+            }
+            case 3: // back
             default:
                 state.closeMenu();
                 view.invalidate();
@@ -465,7 +606,11 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
                 if (!state.alertsEnabled) disarmAlert();
                 view.invalidate();
                 break;
-            case 3:
+            case 3: // starting screen
+                state.openStartScreen();
+                view.invalidate();
+                break;
+            case 4: // back
             default:
                 state.closeMenu();
                 view.invalidate();
@@ -496,9 +641,8 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
     @Override
     public void onBack() {
         if (state.screen == WatchState.SCREEN_STOPS) {
-            state.screen = WatchState.SCREEN_ROUTES;
-            state.routeStops = null;
-            state.board = null;
+            // back to favourites when the board was opened from there
+            state.closeStops();
             if (state.status == WatchState.STATUS_ERROR) {
                 state.status = state.routes.isEmpty()
                         ? WatchState.STATUS_EMPTY : WatchState.STATUS_READY;
@@ -507,9 +651,25 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
         } else if (state.screen == WatchState.SCREEN_CITIES) {
             state.closeMenu();
             view.invalidate();
+        } else if (state.screen == WatchState.SCREEN_FAV_PICK) {
+            // leaving the add-mode commits the marks, so "назад" stays "назад"
+            saveFavourites();
+            state.favDirty = false;
+            state.screen = WatchState.SCREEN_FAV;
+            state.refreshFavList();
+            view.invalidate();
+        } else if (state.screen == WatchState.SCREEN_FAV) {
+            // leaving the favourites mode also saves the list
+            saveFavourites();
+            state.favDirty = false;
+            state.screen = WatchState.SCREEN_ROUTES;
+            applyRouteFilter();
+            view.invalidate();
         } else if (state.screen == WatchState.SCREEN_STOP_MENU
                 || state.screen == WatchState.SCREEN_SETTINGS) {
+            int backTo = state.menuParent;
             state.closeMenu();
+            if (backTo == WatchState.SCREEN_FAV) state.screen = WatchState.SCREEN_FAV;
             view.invalidate();
         } else if (state.status == WatchState.STATUS_ERROR
                 || state.status == WatchState.STATUS_NO_PERMISSION) {
@@ -586,13 +746,15 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
         List<Vehicle> filtered = new ArrayList<>();
         int busesHere = 0;
         long now = System.currentTimeMillis() / 1000L;
+        long offset = FeedClock.estimateOffset(vehicles, now);
         for (Vehicle v : vehicles) {
             if (v.sleeping) continue;
-            if (v.timestampSec > 0 && now - v.timestampSec > 300) continue;
+            if (!FeedClock.isFresh(v, now, offset, FeedClock.MAX_AGE_SEC)) continue;
             filtered.add(v);
             if (v.dir == state.dir) busesHere++;
         }
-        Board board = Board.build(stops, filtered, state.dir, state.effLat(), state.effLon(), now, 300);
+        Board board = Board.build(stops, filtered, state.dir, state.effLat(), state.effLon(),
+                now, FeedClock.MAX_AGE_SEC);
         state.setBoard(rs, board, board.userStopIndex, busesHere);
         state.status = WatchState.STATUS_READY;
         view.invalidate();
@@ -614,7 +776,8 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
         if (state.selectedRoute == null || state.routeStops == null || state.board == null) return;
         List<StopInfo> stops = state.routeStops.direction(state.dir);
         Board board = Board.build(stops, currentVehicles(), state.dir,
-                state.effLat(), state.effLon(), System.currentTimeMillis() / 1000L, 300);
+                state.effLat(), state.effLon(), System.currentTimeMillis() / 1000L,
+                FeedClock.MAX_AGE_SEC);
         state.setBoard(state.routeStops, board, board.userStopIndex, state.busesHereCount);
         view.invalidate();
     }
@@ -647,6 +810,11 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // every press of a hardware side button gives a short vibration,
+        // whatever the button ends up doing
+        if (view != null && isSideButton(keyCode) && event.getRepeatCount() == 0) {
+            view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+        }
         if (view != null && view.dispatchKeyEvent(event)) return true;
         switch (keyCode) {
             case KeyEvent.KEYCODE_STEM_1:
@@ -654,6 +822,16 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
             case KeyEvent.KEYCODE_STEM_3:
             case KeyEvent.KEYCODE_MENU:
                 if (view != null) {
+                    // lower side button: closes the settings back to the screen
+                    // they were opened from; opens them from the favourites
+                    if (state.screen == WatchState.SCREEN_SETTINGS) {
+                        onBack();
+                        return true;
+                    }
+                    if (state.inFavourites()) {
+                        onOpenSettings();
+                        return true;
+                    }
                     view.showContextMenuFromKey();
                     return true;
                 }
@@ -664,9 +842,24 @@ public final class BusWatchActivity extends Activity implements WatchView.Listen
         return super.onKeyDown(keyCode, event);
     }
 
+    /** Watch side buttons: stems, menu and the primary button. */
+    private static boolean isSideButton(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_STEM_1
+                || keyCode == KeyEvent.KEYCODE_STEM_2
+                || keyCode == KeyEvent.KEYCODE_STEM_3
+                || keyCode == KeyEvent.KEYCODE_MENU
+                || keyCode == KeyEvent.KEYCODE_STEM_PRIMARY;
+    }
+
     @Override
     public void onBackPressed() {
         if (view != null && view.recentlyHandledBack()) return;
+        // Huawei's lower side button sends BACK: on the favourites screen it
+        // opens the settings, like the side button on the main screen
+        if (state.inFavourites()) {
+            onOpenSettings();
+            return;
+        }
         if (state.screen != WatchState.SCREEN_ROUTES) {
             onBack();
             return;

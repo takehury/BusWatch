@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /** Host-side test suite (no Android, no emulator, no external test deps). */
@@ -33,6 +34,7 @@ public final class AllTests {
         testAlertText();
         testDisplays();
         testInertia();
+        testFeedClock();
         testRoutePageParser();
         testMultiCity();
         testWatchState(stopsJson, routesJson, routeStopsJson, bus534);
@@ -170,6 +172,33 @@ public final class AllTests {
         check("sel preserves key", "11".equals(sel.selectedKey()));
         sel.setKeys(new ArrayList<String>());
         check("sel empty", sel.isEmpty() && sel.size() == 0);
+
+        // окно списка задаётся владельцем (5 строк у маршрутов, 4 у избранного):
+        // короткий список из 3 элементов всё равно прокручивается, чтобы
+        // выбранная строка попала в центр окна
+        Selection shortSel = new Selection();
+        shortSel.setVisible(RouteList.VISIBLE);
+        shortSel.setKeys(Arrays.asList("0", "1", "2"));
+        check("short sel window 5", shortSel.visibleCount() == 5);
+        check("short sel first centred", shortSel.selectedIndex() == 0
+                && shortSel.topIndex() == -2);
+        shortSel.select(1);
+        check("short sel scrolls to middle", shortSel.topIndex() == -1);
+        shortSel.select(2);
+        check("short sel last centred", shortSel.topIndex() == 0);
+
+        // список избранного живёт в окне из 4 строк: короткий список из 3
+        // элементов тоже прокручивается, чтобы выбранная строка была в центре
+        Selection favWin = new Selection();
+        favWin.setVisible(FavList.VISIBLE);
+        favWin.setKeys(Arrays.asList("0", "1", "2"));
+        check("fav sel window 4", favWin.visibleCount() == 4);
+        check("fav sel 3 items scroll", favWin.selectedIndex() == 0
+                && favWin.topIndex() == -2);
+        favWin.select(1);
+        check("fav sel 3 items middle", favWin.topIndex() == -1);
+        favWin.select(2);
+        check("fav sel 3 items last centred", favWin.topIndex() == 0);
     }
 
     private static void testBoard(String stopsJson, String routesJson, String routeStopsJson, String bus534) {
@@ -240,37 +269,97 @@ public final class AllTests {
         check("focal width symmetric", FocalList.rowWidthDp(168f, 0) == FocalList.rowWidthDp(168f, 4));
         check("focal rows have a gap", FocalList.rowHeightDp(2) < 40f
                 && FocalList.rowHeightDp(2) == 40f - FocalList.GAP);
-        // route picker: taller slots, bigger gaps, still inside the circle
+        // route picker: 5 rows with the tallest slot in the middle, bigger gaps
+        float routesTop = 29.5f; // WatchUi.ROUTES_TOP
+        check("route list visible rows", RouteList.VISIBLE == 5);
         check("route list total height", Math.abs(RouteList.totalHeightDp() - 174f) < 0.01f);
         check("route list gap", RouteList.rowHeightDp(2) == 46f - RouteList.GAP);
         check("route gap bigger than stops", RouteList.GAP > FocalList.GAP);
-        check("route rows fit circle", routeRowsInsideCircle(29.5f, 168f, 112f));
-        check("route centre tallest", RouteList.rowHeightDp(2) > RouteList.rowHeightDp(1));
-        // spacing: the 1-2 gap must equal the last pair gap, and every visual
-        // gap between neighbouring rows must be identical
-        float d12 = RouteList.rowCenterDp(29.5f, 1) - RouteList.rowCenterDp(29.5f, 0);
-        float d45 = RouteList.rowCenterDp(29.5f, 4) - RouteList.rowCenterDp(29.5f, 3);
-        check("route 1-2 spacing == last pair", Math.abs(d12 - d45) < 0.01f);
+        check("route rows fit circle", routeRowsInsideCircle(routesTop, 168f, 112f));
+        // the centre row is the tallest; neighbours and edges shrink symmetrically
+        check("route centre tallest", RouteList.rowHeightDp(2) == 38f
+                && RouteList.rowHeightDp(2) > RouteList.rowHeightDp(1)
+                && RouteList.rowHeightDp(1) == RouteList.rowHeightDp(3)
+                && RouteList.rowHeightDp(3) > RouteList.rowHeightDp(0)
+                && RouteList.rowHeightDp(0) == RouteList.rowHeightDp(4));
+        check("route row heights", RouteList.rowHeightDp(0) == 22f
+                && RouteList.rowHeightDp(1) == 26f
+                && RouteList.rowHeightDp(2) == 38f
+                && RouteList.rowHeightDp(3) == 26f
+                && RouteList.rowHeightDp(4) == 22f);
+        // row centres sit at T+15 / T+47 / T+87 / T+127 / T+159
+        check("route row centres",
+                RouteList.rowCenterDp(routesTop, 0) == routesTop + 15f
+                        && RouteList.rowCenterDp(routesTop, 1) == routesTop + 47f
+                        && RouteList.rowCenterDp(routesTop, 2) == routesTop + 87f
+                        && RouteList.rowCenterDp(routesTop, 3) == routesTop + 127f
+                        && RouteList.rowCenterDp(routesTop, 4) == routesTop + 159f);
+        float d01 = RouteList.rowCenterDp(routesTop, 1) - RouteList.rowCenterDp(routesTop, 0);
+        float d12 = RouteList.rowCenterDp(routesTop, 2) - RouteList.rowCenterDp(routesTop, 1);
+        float d23 = RouteList.rowCenterDp(routesTop, 3) - RouteList.rowCenterDp(routesTop, 2);
+        float d34 = RouteList.rowCenterDp(routesTop, 4) - RouteList.rowCenterDp(routesTop, 3);
+        // 32 / 40 / 40 / 32: the middle pair spreads wider than the outer pairs
+        check("route 1-2 spacing == last pair", Math.abs(d01 - d34) < 0.01f
+                && Math.abs(d12 - d23) < 0.01f);
+        check("route middle pair spacing widest", d12 > d01 && d23 > d34);
+        check("route neighbour spacing", Math.abs(d01 - 32f) < 0.01f
+                && Math.abs(d12 - 40f) < 0.01f
+                && Math.abs(d23 - 40f) < 0.01f
+                && Math.abs(d34 - 32f) < 0.01f);
         boolean uniformGaps = true;
         for (int i = 1; i < RouteList.VISIBLE; i++) {
-            float prevBottom = RouteList.rowTopDp(29.5f, i - 1) + RouteList.rowHeightDp(i - 1);
-            float gap = RouteList.rowTopDp(29.5f, i) - prevBottom;
+            float prevBottom = RouteList.rowTopDp(routesTop, i - 1) + RouteList.rowHeightDp(i - 1);
+            float gap = RouteList.rowTopDp(routesTop, i) - prevBottom;
             uniformGaps &= Math.abs(gap - RouteList.GAP) < 0.01f;
         }
         check("route visual gaps uniform", uniformGaps);
-        float topMargin = (RouteList.rowTopDp(29.5f, 0) + RouteList.GAP / 2f) - 4.5f;
-        float bottomMargin = 228.5f - (RouteList.rowTopDp(29.5f, 4)
-                + RouteList.GAP / 2f + RouteList.rowHeightDp(4));
-        check("route list vertically balanced", Math.abs(topMargin - bottomMargin) < 6f);
+        // the 174dp list block is centred on the round screen (r=112, cy=116.5)
+        float topMargin = routesTop - 4.5f;
+        float bottomMargin = 228.5f - (routesTop + RouteList.totalHeightDp());
+        check("route list vertically balanced", Math.abs(topMargin - bottomMargin) < 6f
+                && Math.abs(RouteList.rowCenterDp(routesTop, RouteList.VISIBLE / 2) - 116.5f) < 0.01f);
+        // the route picker scales rows by their POSITION in the window, not by
+        // the selection: the centre row is full size, rows further away taper
+        check("route selected row largest", RouteList.scale(2) == 1f
+                && RouteList.scale(2) > RouteList.scale(1)
+                && RouteList.scale(1) > RouteList.scale(0));
+        check("route scale by distance", RouteList.scale(2) == 1f
+                && RouteList.scale(1) == 0.86f && RouteList.scale(3) == 0.86f
+                && RouteList.scale(0) == 0.72f && RouteList.scale(4) == 0.72f);
         // row sides follow the round display: longer than the old fixed-width rows
-        float wTop = FocalList.widthForRow(RouteList.rowTopDp(29.5f, 0), RouteList.rowHeightDp(0), 112f, 116.5f, 9f, 214f);
-        float wMid = FocalList.widthForRow(RouteList.rowTopDp(29.5f, 2), RouteList.rowHeightDp(2), 112f, 116.5f, 9f, 214f);
-        float wBot = FocalList.widthForRow(RouteList.rowTopDp(29.5f, 4), RouteList.rowHeightDp(4), 112f, 116.5f, 9f, 214f);
+        float wTop = FocalList.widthForRow(RouteList.rowTopDp(routesTop, 0), RouteList.rowHeightDp(0), 112f, 116.5f, 9f, 214f);
+        float wMid = FocalList.widthForRow(RouteList.rowTopDp(routesTop, 2), RouteList.rowHeightDp(2), 112f, 116.5f, 9f, 214f);
+        float wBot = FocalList.widthForRow(RouteList.rowTopDp(routesTop, 4), RouteList.rowHeightDp(4), 112f, 116.5f, 9f, 214f);
         check("route centre row longer at sides", wMid > 190f);
         check("route width circle-shaped", wMid > wTop && wMid > wBot);
         check("route widths stay inside circle", wTop < 214f && wBot < 214f);
         float swTop = FocalList.widthForRow(FocalList.rowTopDp(68f, 4), FocalList.rowHeightDp(4), 112f, 116.5f, 9f, 214f);
         check("stop rows follow circle", swTop > 100f && swTop < 214f);
+
+        // favourites list: its own 4-row geometry under the header buttons
+        float favTop = 63f; // WatchUi.FAV_TOP
+        check("fav list visible rows", FavList.VISIBLE == 4);
+        check("fav list total height", Math.abs(FavList.totalHeightDp() - 137f) < 0.01f);
+        // slots {30, 47, 44, 40}: the selected row is pinned to slot 1
+        check("fav list row heights", FavList.rowHeightDp(0) == 25f
+                && FavList.rowHeightDp(1) == 42f
+                && FavList.rowHeightDp(2) == 29f
+                && FavList.rowHeightDp(3) == 21f);
+        check("fav list row centres",
+                FavList.rowCenterDp(favTop, 0) == favTop + 15f
+                        && FavList.rowCenterDp(favTop, 1) == favTop + 53.5f
+                        && FavList.rowCenterDp(favTop, 2) == favTop + 94f
+                        && FavList.rowCenterDp(favTop, 3) == favTop + 124f);
+        // the last two rows sit closer together than before
+        check("fav last rows tighter", FavList.rowCenterDp(0, 3) - FavList.rowCenterDp(0, 2) == 30f);
+        check("fav top puts slot 1 on the centre", FavList.TOP == 63f);
+        // the selected slot must land exactly on the display centre
+        check("fav selected slot centred",
+                FavList.rowCenterDp(FavList.TOP, FavList.SELECTED_SLOT) == 116.5f);
+        // both lists are on screen at once and are genuinely different
+        check("lists have different row counts",
+                RouteList.VISIBLE == 5 && FavList.VISIBLE == 4
+                        && RouteList.totalHeightDp() > FavList.totalHeightDp());
 
         // topIndex for 12 items, selected 3 -> centre at visible index 2
         check("focal topIndex", FocalList.topIndex(12, 3) == 1);
@@ -278,14 +367,26 @@ public final class AllTests {
         check("focal topIndex empty", FocalList.topIndex(0, 0) == 0);
         check("first item centred", FocalList.topIndex(12, 0) == -2);
         check("last item centred", FocalList.topIndex(12, 11) == 9);
-        check("short list centred", FocalList.topIndex(3, 0) == -1
-                && FocalList.topIndex(3, 2) == -1);
+        // short lists scroll too: the chosen item always lands in the middle
+        // slot (empty slots above/below are simply not drawn)
+        check("short list centred", FocalList.topIndex(3, 0) == -2
+                && FocalList.topIndex(3, 1) == -1
+                && FocalList.topIndex(3, 2) == 0);
+        check("short list scrolls in 5-row window",
+                FocalList.topIndex(3, 0, RouteList.VISIBLE) == -2
+                        && FocalList.topIndex(3, 1, RouteList.VISIBLE) == -1
+                        && FocalList.topIndex(3, 2, RouteList.VISIBLE) == 0);
+        // the favourites list is a 4-row window: such a short list still scrolls
+        check("short list scrolls in 4-row window",
+                FocalList.topIndex(3, 0, FavList.VISIBLE) == -2
+                        && FocalList.topIndex(3, 1, FavList.VISIBLE) == -1
+                        && FocalList.topIndex(3, 2, FavList.VISIBLE) == 0);
         check("single item centred", FocalList.topIndex(1, 0) == -2);
 
         // the row rectangles themselves must stay inside the round screen
         check("focal rows fit stops circle", rowsInsideCircle(68f, 168f, 112f));
         check("stop rows clear the scrollbar", rowsClearScrollbar(68f, 136));
-        check("route rows clear the scrollbar", routeRowsClearScrollbar(29.5f));
+        check("route rows clear the scrollbar", routeRowsClearScrollbar(routesTop));
         check("focal widths shrink at edges", FocalList.rowWidthDp(168f, 0) < 168f * 0.85f);
     }
 
@@ -322,6 +423,61 @@ public final class AllTests {
         java.util.Map<String, Integer> m = orders(id1, o1);
         m.put(id2, o2);
         return m;
+    }
+
+    private static void testFeedClock() {
+        long now = 1000000L;
+
+        // 1. Новосибирск: ts в локальном времени UTC+7 → «старый» на вид, но свежий
+        Vehicle nsk = new Vehicle("u1", 1, 0, "3", "t", 55.0, 82.0, 0, 0, "A", "P",
+                0, now - 7 * 3600L, false, 1, 0);
+        check("clock offset nsk", FeedClock.estimateOffset(
+                Arrays.asList(nsk), now) == 7 * 3600L);
+        check("clock fresh after correction", FeedClock.isFresh(
+                nsk, now, FeedClock.estimateOffset(Arrays.asList(nsk), now), 300));
+
+        // 2. Владивосток: ts в будущем (UTC+10)
+        Vehicle vlad = new Vehicle("u2", 1, 0, "3", "t", 43.0, 131.0, 0, 0, "A", "P",
+                0, now + 10 * 3600L, false, 1, 0);
+        check("clock offset future", FeedClock.estimateOffset(
+                Arrays.asList(vlad), now) == -10 * 3600L);
+        check("clock fresh future city", FeedClock.isFresh(
+                vlad, now, FeedClock.estimateOffset(Arrays.asList(vlad), now), 300));
+
+        // 3. Красноярск: ts в UTC, смещения нет
+        Vehicle krsk = new Vehicle("u3", 1, 0, "3", "t", 56.0, 92.0, 0, 0, "A", "P",
+                0, now - 60L, false, 1, 0);
+        check("clock offset utc", FeedClock.estimateOffset(
+                Arrays.asList(krsk), now) == 60L);
+        check("clock fresh utc", FeedClock.isFresh(
+                krsk, now, FeedClock.estimateOffset(Arrays.asList(krsk), now), 300));
+
+        // 4. по-настоящему старый автобус отбрасывается
+        long off = 7 * 3600L;
+        Vehicle old = new Vehicle("u4", 1, 0, "3", "t", 55.0, 82.0, 0, 0, "A", "P",
+                0, now - 7 * 3600L - 900L, false, 1, 0);
+        check("clock stale dropped", !FeedClock.isFresh(old, now, off, 300));
+
+        // 4a. фид, ушедший далеко за пределы часовых поясов, не показывается
+        Vehicle broken = new Vehicle("u6", 1, 0, "3", "t", 55.0, 82.0, 0, 0, "A", "P",
+                0, now - 20 * 3600L, false, 1, 0);
+        long brokenOff = FeedClock.estimateOffset(Arrays.asList(broken), now);
+        check("clock broken feed rejected", brokenOff == Long.MAX_VALUE
+                && !FeedClock.isFresh(broken, now, brokenOff, 300));
+
+        // 5. без метки времени автобус считается свежим
+        Vehicle noTs = new Vehicle("u5", 1, 0, "3", "t", 55.0, 82.0, 0, 0, "A", "P",
+                0, 0L, false, 1, 0);
+        check("clock no timestamp", FeedClock.isFresh(noTs, now, 0, 300));
+
+        // 6. доска принимает автобусы разных часовых поясов: смещение считается
+        //    по самой свежей метке в фиде
+        List<Vehicle> fleet = Arrays.asList(nsk, krsk);
+        Board mixed = Board.build(
+                Arrays.asList(new StopInfo(1, "Остановка", "", 55.0, 82.0, null)),
+                fleet, 0, 55.0, 82.0, now, 300);
+        check("clock board keeps fresh vehicles", mixed.rows.get(0).atStop.size() >= 1);
+        check("clock board not empty", mixed.rows.get(0).atStop.size() <= 2);
     }
 
     private static void testInertia() {
@@ -430,6 +586,12 @@ public final class AllTests {
         WatchState s = new WatchState();
         s.setRoutes(c.groundRoutes());
         check("ws routes set", s.routes.size() == 74);
+        // the main route list keeps its 5-row window; the favourites use their
+        // own shorter list (4 rows), so the two selections must differ
+        check("ws route window 5", s.routeSel.visibleCount() == RouteList.VISIBLE
+                && s.routeSel.visibleCount() == 5);
+        check("ws fav window 4", s.favSel.visibleCount() == FavList.VISIBLE
+                && s.favPickSel.visibleCount() == 4);
 
         // location defaults
         check("ws auto default", s.autoTrack && s.locationMode == WatchState.LOC_AUTO);
@@ -461,6 +623,8 @@ public final class AllTests {
                 Geo.CITY_LAT, Geo.CITY_LON, 1794275200L, 300);
         s.setBoard(rs2, b2, 5, 0);
         check("ws board first fill centres on user", s.stopSel.selectedIndex() == 5);
+        // stops keep the 5-row fisheye window
+        check("ws stops window 5", s.stopSel.visibleCount() == 5);
         s.stopSel.move(7);
         int chosen = s.stopSel.selectedIndex();
         Board b3 = Board.build(rs2.dir0, new ArrayList<Vehicle>(), 0,
@@ -470,11 +634,83 @@ public final class AllTests {
 
         // menus
         s.openStopMenu();
-        check("ws stop menu", s.screen == WatchState.SCREEN_STOP_MENU && s.menuSel.size() == 3);
+        check("ws stop menu", s.screen == WatchState.SCREEN_STOP_MENU && s.menuSel.size() == 4);
         s.openSettings();
-        check("ws settings", s.screen == WatchState.SCREEN_SETTINGS && s.menuSel.size() == 4);
+        check("ws settings", s.screen == WatchState.SCREEN_SETTINGS && s.menuSel.size() == 5);
+        // настройки: окно из 4 строк без пустых слотов, topIndex = clamp(sel-2, 0, size-4)
+        check("ws settings window 4", s.menuSel.visibleCount() == WatchState.SETTINGS_VISIBLE
+                && WatchState.SETTINGS_VISIBLE == FavList.VISIBLE);
+        // the selected row is always centred (empty slots above/below)
+        s.menuSel.select(0);
+        // the selected row is pinned to slot 1 (display centre)
+        s.menuSel.select(0);
+        check("ws settings first centred", s.menuSel.topIndex() == -1);
+        s.menuSel.select(2);
+        check("ws settings middle centred", s.menuSel.topIndex() == 1);
+        s.menuSel.select(4);
+        check("ws settings last centred", s.menuSel.topIndex() == 3);
         s.closeMenu();
         check("ws menu closes to parent", s.screen == WatchState.SCREEN_ROUTES);
+
+        // favourites: список желаемых маршрутов
+        WatchState fav = new WatchState();
+        fav.status = WatchState.STATUS_READY;
+        fav.setRoutes(c.groundRoutes());
+        fav.openFavourites();
+        check("fav screen opens", fav.screen == WatchState.SCREEN_FAV);
+        check("fav list empty at first", fav.favSel.size() == 0);
+        check("fav no add entry", !fav.isAddEntry(0));
+        fav.favs.add(c.groundRoutes().get(0).id);
+        fav.refreshFavList();
+        check("fav list grows", fav.favSel.size() == 1);
+        check("fav has no add entry", !fav.isAddEntry(0));
+        fav.openFavPicker();
+        check("fav picker opens", fav.screen == WatchState.SCREEN_FAV_PICK
+                && fav.favPickSel.size() == c.groundRoutes().size());
+        fav.openFavourites();
+        check("fav picker back", fav.screen == WatchState.SCREEN_FAV);
+        check("fav in favourites flag", fav.inFavourites());
+        // список избранного из нескольких маршрутов реально прокручивается:
+        // любая строка может оказаться в центре 4-строчного окна
+        for (int i = 1; i < 5; i++) fav.favs.add(c.groundRoutes().get(i).id);
+        fav.refreshFavList();
+        check("fav list scrolls", fav.favSel.size() == 5);
+        fav.favSel.select(0);
+        check("fav first centred", fav.favSel.selectedIndex() == 0
+                && fav.favSel.topIndex() == -1);
+        fav.favSel.select(fav.favSel.size() - 1);
+        check("fav last centred", fav.favSel.selectedIndex() == 4
+                && fav.favSel.topIndex() == fav.favSel.size() - 2);
+
+        // выбранный элемент всегда самый крупный
+        // (у избранного своя 4-строчная геометрия со scaleFor)
+        check("fav selected row is largest",
+                FavList.scaleFor(0, 0) == 1f
+                        && FavList.scaleFor(0, 0) > FavList.scaleFor(1, 0)
+                        && FavList.scaleFor(1, 0) == 0.88f
+                        && FavList.scaleFor(1, 0) > FavList.scaleFor(2, 0)
+                        && FavList.scaleFor(2, 0) == 0.76f);
+        check("fav selected row largest anywhere",
+                FavList.scaleFor(3, 3) == 1f
+                        && FavList.scaleFor(2, 3) == 0.88f
+                        && FavList.scaleFor(0, 3) == 0.76f
+                        && FavList.scaleFor(2, 3) < FavList.scaleFor(3, 3));
+        // выбранная строка избранного всегда 1.0, в каком бы окне она ни была
+        boolean favAlwaysFull = true;
+        for (int row = 0; row < FavList.VISIBLE; row++) {
+            favAlwaysFull &= FavList.scaleFor(row, row) == 1f;
+            for (int other = 0; other < FavList.VISIBLE; other++) {
+                if (other != row) favAlwaysFull &= FavList.scaleFor(other, row) < 1f;
+            }
+        }
+        check("fav selected row always full size", favAlwaysFull);
+
+        // настройки из режима желаемых маршрутов возвращают обратно
+        fav.openSettings();
+        check("settings from favs", fav.screen == WatchState.SCREEN_SETTINGS
+                && fav.menuParent == WatchState.SCREEN_FAV);
+        fav.closeMenu();
+        check("settings back to favs", fav.screen == WatchState.SCREEN_FAV);
 
         // a catalogue reload while in settings must not reset the screen
         WatchState keep = new WatchState();
@@ -489,6 +725,23 @@ public final class AllTests {
         check("city picker back -> settings", keep.screen == WatchState.SCREEN_SETTINGS);
         keep.closeMenu();
         check("settings back -> routes", keep.screen == WatchState.SCREEN_ROUTES);
+
+        // начальный экран: выбор
+        WatchState start = new WatchState();
+        start.startScreenFav = false;
+        start.openStartScreen();
+        check("start screen opens", start.screen == WatchState.SCREEN_START);
+        check("start screen two options", start.startSel.size() == 2);
+        check("start screen default all", start.startSel.selectedIndex() == 0);
+        start.startScreenFav = true;
+        start.openStartScreen();
+        check("start screen remembers fav", start.startSel.selectedIndex() == 1);
+
+        // меню остановки умеет добавлять маршрут в избранное
+        WatchState menu = new WatchState();
+        menu.openStopMenu();
+        check("stop menu has favourite item", menu.menuSel.size() == 4);
+        check("route not fav by default", !menu.currentRouteIsFav());
 
         // city picker
         java.util.List<City> cities = new java.util.ArrayList<>();
@@ -531,7 +784,14 @@ public final class AllTests {
         // two text lines: route title on top, vehicle type underneath
         check("ui routes shows type text", hasText(routes, "Автобус")
                 || hasText(routes, "Троллейбус") || hasText(routes, "Трамвай"));
+        // two text lines per row (title + vehicle type) plus the number badges
+        // and the clock: 1 + 5 * 3 = 16 texts for the five visible rows
         check("ui routes has two-line rows", countType(routes, UiFrame.TEXT) >= 15);
+        // the second text line (vehicle type) is drawn for every visible row
+        check("ui routes type line per row",
+                countText(routes, "Автобус") + countText(routes, "Троллейбус")
+                        + countText(routes, "Трамвай") + countText(routes, "Маршрутка")
+                        >= RouteList.VISIBLE);
         check("ui routes text inside", textInsideCircle(routes, m, 224f));
         check("ui routes has no city title", !hasText(routes, "КРАСНОЯРСК"));
 
@@ -624,13 +884,176 @@ public final class AllTests {
         check("ui cities has names", hasText(cityFrame, "Красноярск"));
         check("ui cities inside", textInsideCircle(cityFrame, m, 224f));
 
-        // settings
+        // settings: 4-row scrollable list, so the alert row is scrolled into view
         s.openSettings();
         UiFrame settings = ui.build(s, m);
         check("ui settings builds", settings.ops.size() > 8);
         check("ui settings autotrack", hasText(settings, "Автопозиция"));
-        check("ui settings alerts", hasText(settings, "Ожидание:"));
-        check("ui settings text inside", textInsideCircle(settings, m, 224f));
+        check("ui settings window 4", s.menuSel.visibleCount() == WatchState.SETTINGS_VISIBLE);
+        s.menuSel.select(2);
+        check("ui settings alert row scrolls", s.menuSel.topIndex() == 1);
+        UiFrame settingsAlerts = ui.build(s, m);
+        check("ui settings alerts", hasText(settingsAlerts, "Ожидание:"));
+        check("ui settings text inside", textInsideCircle(settingsAlerts, m, 224f));
+        s.menuSel.select(4);
+        check("ui settings bottom row centred", s.menuSel.topIndex() == 3
+                && s.menuSel.visibleCount() == FavList.VISIBLE);
+
+        // heart colours: no red anywhere, colour follows the location state
+        for (int state = 0; state < 3; state++) {
+            WatchState hs = new WatchState();
+            hs.status = WatchState.STATUS_READY;
+            hs.setRoutes(c.groundRoutes());
+            hs.favs.add(hs.routes.get(1).id);
+            if (state == 1) hs.gpsFix = true;
+            if (state == 2) hs.setManualLocation("x", 56.0, 92.9);
+            hs.openFavourites(); // the status heart lives in this header
+            UiFrame fh = ui.build(hs, m);
+            boolean redFound = false;
+            int heartColor = 0;
+            int hearts = 0;
+            // the heart is a smooth vector shape now: one HEART op
+            for (UiFrame.Op op : fh.ops) {
+                if (op.type == UiFrame.POLYGON) {
+                    hearts++;
+                    heartColor = op.color;
+                    if (op.color == 0xFFFF3B30) redFound = true;
+                }
+            }
+            check("no red hearts in the favourites header", !redFound);
+            int baseExpected = state == 2 ? 0xFFFFB020 : (state == 1 ? 0xFF3DDC97 : 0xFF5D7387);
+            int expected = (baseExpected & 0x00FFFFFF) | 0xCC000000;
+            check("heart colour state " + state, hearts > 0 && heartColor == expected);
+        }
+
+        // toggling a mark and toggling it back leaves nothing to save
+        WatchState snap = new WatchState();
+        snap.status = WatchState.STATUS_READY;
+        snap.setRoutes(c.groundRoutes());
+        snap.favs.add(snap.routes.get(1).id);
+        snap.openFavourites();
+        snap.openFavPicker();
+        check("fav dirty starts clean", !snap.favDirty);
+        snap.favs.add(snap.routes.get(3).id);
+        snap.updateFavDirty();
+        check("fav dirty after adding", snap.favDirty);
+        snap.favs.remove(snap.routes.get(3).id);
+        snap.updateFavDirty();
+        check("fav clean after undoing", !snap.favDirty);
+        snap.favs.remove(snap.routes.get(1).id);
+        snap.updateFavDirty();
+        check("fav dirty after removing", snap.favDirty);
+
+        // the "сохранить" label appears in the add-mode itself, and disappears
+        // once the add-mode is left
+        WatchState pick = new WatchState();
+        pick.status = WatchState.STATUS_READY;
+        pick.setRoutes(c.groundRoutes());
+        pick.favs.add(pick.routes.get(1).id);
+        pick.openFavourites();
+        pick.openFavPicker();
+        pick.favDirty = false;
+        check("fav picker idle label", !hasText(ui.build(pick, m), "сохранить"));
+        pick.favDirty = true;
+        check("fav picker dirty label", hasText(ui.build(pick, m), "сохранить"));
+        pick.screen = WatchState.SCREEN_FAV;
+        pick.favDirty = false;
+        check("fav list back label", !hasText(ui.build(pick, m), "сохранить")
+                && hasText(ui.build(pick, m), "назад"));
+
+        // "назад" со остановок возвращает туда, откуда открыли маршрут
+        WatchState nav2 = new WatchState();
+        nav2.status = WatchState.STATUS_READY;
+        nav2.setRoutes(c.groundRoutes());
+        nav2.openFavourites();
+        nav2.stopsParent = WatchState.SCREEN_FAV;
+        nav2.openRoute(c.groundRoutes().get(0), 0);
+        check("stops remember favourites origin", nav2.screen == WatchState.SCREEN_STOPS);
+        nav2.closeStops();
+        check("back returns to favourites", nav2.screen == WatchState.SCREEN_FAV);
+
+        // and to the route list when opened from there
+        WatchState nav3 = new WatchState();
+        nav3.status = WatchState.STATUS_READY;
+        nav3.setRoutes(c.groundRoutes());
+        nav3.stopsParent = WatchState.SCREEN_ROUTES;
+        nav3.openRoute(c.groundRoutes().get(0), 0);
+        nav3.closeStops();
+        check("back returns to routes", nav3.screen == WatchState.SCREEN_ROUTES);
+
+        // add-mode: marked routes are listed first, unmarked after them
+        WatchState sorter = new WatchState();
+        sorter.status = WatchState.STATUS_READY;
+        sorter.setRoutes(c.groundRoutes());
+        int markedId = sorter.routes.get(4).id;
+        sorter.favs.add(markedId);
+        sorter.openFavPicker();
+        check("picker puts marked first",
+                sorter.favPickSel.keyAt(0).equals(String.valueOf(markedId)));
+        // toggle another route: it jumps to the top group as well
+        int secondId = sorter.routes.get(7).id;
+        sorter.favs.add(secondId);
+        sorter.refreshFavPicker();
+        check("picker re-sorts after toggle",
+                sorter.favPickSel.keyAt(0).equals(String.valueOf(markedId))
+                        && sorter.favPickSel.keyAt(1).equals(String.valueOf(secondId)));
+        // the cursor stays on its row instead of following the route
+        sorter.favPickSel.select(1);
+        sorter.favs.remove(markedId);
+        sorter.refreshFavPicker();
+        check("picker keeps the row after re-sort", sorter.favPickSel.selectedIndex() == 1);
+
+        // empty favourites: faded heart and the hint
+        WatchState blank = new WatchState();
+        blank.status = WatchState.STATUS_READY;
+        blank.setRoutes(c.groundRoutes());
+        blank.openFavourites();
+        UiFrame blankFrame = ui.build(blank, m);
+        boolean emptyHeart = false;
+        int heartColour = 0;
+        for (UiFrame.Op op : blankFrame.ops) {
+            if (op.type == UiFrame.POLYGON) {
+                emptyHeart = true;
+                heartColour = op.color;
+            }
+        }
+        // solid red: a translucent shape shows seams where its parts overlap
+        check("empty favourites shows a red heart", emptyHeart && heartColour == 0xFFFF3B30);
+        check("empty favourites shows the hint", hasText(blankFrame, "добавьте избранное"));
+        check("empty favourites text inside", textInsideCircle(blankFrame, m, 224f));
+
+        // the favourite marker in the main list stays red on purpose
+        WatchState marker = new WatchState();
+        marker.status = WatchState.STATUS_READY;
+        marker.setRoutes(c.groundRoutes());
+        marker.favs.add(marker.routes.get(1).id);
+        marker.routeSel.select(1);
+        UiFrame markerFrame = ui.build(marker, m);
+        boolean redMarker = false;
+        for (UiFrame.Op op : markerFrame.ops) {
+            if (op.type == UiFrame.POLYGON && op.color == 0xFFFF3B30) redMarker = true;
+        }
+        check("main list favourite marker is red", redMarker);
+
+        // favourites screen: 5 marked routes, but only the 4-row window is drawn
+        // (regression: the old loop drew a 5th row on top of the 4th one)
+        WatchState fv = new WatchState();
+        fv.status = WatchState.STATUS_READY;
+        fv.setRoutes(c.groundRoutes());
+        for (int i = 0; i < 5; i++) fv.favs.add(c.groundRoutes().get(i).id);
+        fv.openFavourites();
+        check("ui fav list has 5 entries", fv.favSel.size() == 5);
+        fv.favSel.select(2);
+        UiFrame favFrame = ui.build(fv, m);
+        List<Float> favRowYs = new ArrayList<>();
+        for (UiFrame.Op op : favFrame.ops) {
+            // the list starts below the header (FAV_TOP = 63dp); header texts sit above it
+            if (op.type == UiFrame.TEXT && op.y >= 63f * 2f) favRowYs.add(op.y);
+        }
+        check("ui fav draws four rows", favRowYs.size() == FavList.VISIBLE * 3);
+        check("ui fav rows do not overlap", new java.util.HashSet<>(favRowYs).size()
+                == favRowYs.size());
+        check("ui fav text inside", textInsideCircle(favFrame, m, 224f));
 
         s.screen = WatchState.SCREEN_ROUTES;
         s.board = null;
@@ -744,6 +1167,15 @@ public final class AllTests {
             if (op.type == UiFrame.TEXT && op.text.contains(sub)) return true;
         }
         return false;
+    }
+
+    /** Counts text ops whose whole text equals {@code value}. */
+    private static int countText(UiFrame f, String value) {
+        int n = 0;
+        for (UiFrame.Op op : f.ops) {
+            if (op.type == UiFrame.TEXT && value.equals(op.text)) n++;
+        }
+        return n;
     }
 
     private static boolean textInsideCircle(UiFrame f, Metrics m, float r) {

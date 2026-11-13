@@ -38,6 +38,11 @@ public final class WatchUi {
     private static final float TITLE_Y = 49f;
     private static final float ROUTES_TOP = 29.5f;
     private static final float STOPS_TOP = 68f;
+    /** Favourites list starts below the header buttons (they end at 61 dp). */
+    private static final float FAV_TOP = FavList.TOP;
+    /** Settings: title line and the list below it (four rows). */
+    private static final float SETTINGS_TITLE_Y = 40f;
+    private static final float SETTINGS_TOP = FavList.TOP;
     private static final float ROW_W = 168f;
     private static final float MENU_TOP = 76f;
     private static final float INSET = 16f;
@@ -76,6 +81,12 @@ public final class WatchUi {
             drawCitiesScreen(f, s, m);
         } else if (s.screen == WatchState.SCREEN_STOP_MENU) {
             drawStopMenu(f, s, m);
+        } else if (s.screen == WatchState.SCREEN_FAV) {
+            drawFavScreen(f, s, m);
+        } else if (s.screen == WatchState.SCREEN_FAV_PICK) {
+            drawFavPickScreen(f, s, m);
+        } else if (s.screen == WatchState.SCREEN_START) {
+            drawStartScreen(f, s, m);
         } else switch (s.status) {
             case WatchState.STATUS_LOADING:
                 drawLoading(f, s);
@@ -117,10 +128,63 @@ public final class WatchUi {
         float timeSize = sp(11.5f);
         f.text(dp(CX), dp(TIME_Y), timeSize, DIM, UiFrame.ALIGN_CENTER, false, time);
 
-        int dotColor = s.manualActive() ? ACCENT
-                : ((s.gpsFix || s.hasFix) ? GOOD : FAINT);
+        int dotColor = locationColor(s);
         float tw = m != null ? m.width(time, timeSize, false) : dp(30f);
         f.circle(dp(CX) + tw / 2f + dp(6f), dp(TIME_Y - 3.5f), dp(2.6f), dotColor);
+    }
+
+    /**
+     * Heart drawn from primitives instead of the "♥" glyph: on some watch faces
+     * the system font renders U+2665 as a red emoji and ignores the fill colour.
+     */
+    private void drawHeart(UiFrame f, float cx, float cy, float r, int color) {
+        // One closed outline: circular lobes on top (constant radius) flowing
+        // tangentially into straight flanks, filled in a single pass so the
+        // middle of the heart is solid too.
+        float lobeR = r * 0.52f;
+        float dx = r - lobeR;
+        float ly = cy - r * 0.45f;        // lobe centre line
+        float tipY = cy + r * 0.73f;      // bottom point
+
+        double vx = -dx;
+        double vy = tipY - ly;
+        double dist = Math.sqrt(vx * vx + vy * vy);
+        double alpha = Math.atan2(vy, vx);
+        double beta = Math.acos(lobeR / dist);
+        double from = alpha - beta;                       // tangent point
+        double dipY = Math.sqrt(Math.max(0f, lobeR * lobeR - dx * dx));
+        double to = Math.atan2(-dipY, -dx);               // top dip between lobes
+
+        int steps = 20;
+        // tip + (steps+1) points per lobe, two floats each
+        float[] pts = new float[2 + (steps + 1) * 4];
+        int n = 0;
+        pts[n++] = cx;                     // start at the bottom point
+        pts[n++] = tipY;
+        // right lobe: from the tangent point over the top to the dip
+        for (int i = 0; i <= steps; i++) {
+            double ang = from + (to - from) * i / (double) steps;
+            pts[n++] = (float) (cx + dx + lobeR * Math.cos(ang));
+            pts[n++] = (float) (ly + lobeR * Math.sin(ang));
+        }
+        // left lobe: mirror image, back to the left tangent point
+        for (int i = steps; i >= 0; i--) {
+            double ang = from + (to - from) * i / (double) steps;
+            pts[n++] = (float) (cx - dx - lobeR * Math.cos(ang));
+            pts[n++] = (float) (ly + lobeR * Math.sin(ang));
+        }
+        float[] poly = new float[n];
+        System.arraycopy(pts, 0, poly, 0, n);
+        f.polygon(poly, color);
+    }
+
+    /** Colour of the location indicator: GPS green, manual amber, else grey. */
+    private static int locationColor(WatchState s) {
+        if (s.manualActive()) return ACCENT;   // yellow: manual stop
+        if (s.gpsFix) return GOOD;             // green: GPS alive
+        if (s.gpsFallback) return ACCENT;      // yellow: approximate position
+        if (s.hasFix) return GOOD;             // green: network fix
+        return FAINT;                          // grey: nothing yet
     }
 
     // ------------------------------------------------------------ route picker
@@ -171,9 +235,269 @@ public final class WatchUi {
                     selected ? TEXT : 0xFFD3DFE9, UiFrame.ALIGN_LEFT, false, title);
             f.text(textX, cy + dp(12f) * scale, sp(8.5f) * scale,
                     selected ? DIM : FAINT, UiFrame.ALIGN_LEFT, false, typeLabel(r.type));
+
+            // heart marks a favourite route, in the same corner as the tick
+            if (s.favs.contains(r.id)) {
+                drawHeart(f, badgeX + badgeR * 0.62f, cy + badgeR * 0.62f,
+                        dp(5.5f) * scale, 0xFFFF3B30);
+            }
         }
 
-        drawScrollbar(f, s.routes.size(), s.routeSel.topIndex());
+        drawScrollbar(f, s.routes.size(), s.routeSel.topIndex(), RouteList.VISIBLE);
+    }
+
+
+
+    // ------------------------------------------------------- start screen
+
+    /** Chooser of the starting screen: all routes or the favourites. */
+    private void drawStartScreen(UiFrame f, WatchState s, Metrics m) {
+        drawTopBar(f, s, m);
+        f.text(dp(CX), dp(TITLE_Y), sp(9f), ACCENT, UiFrame.ALIGN_CENTER, true, "НАЧАЛЬНЫЙ ЭКРАН");
+
+        String[] labels = {"Все маршруты", "Мои маршруты"};
+        int top = 62f > 0 ? 62 : 62;
+        for (int i = 0; i < 2; i++) {
+            float cy = dp(top + 30f + i * 40f);
+            float rowH = dp(36f);
+            float rowWDp = FocalList.widthForRow(top + 30f + i * 40f, 36f, R, CX, 10f, 214f);
+            float halfW = dp(rowWDp) / 2f;
+            boolean selected = i == s.startSel.selectedIndex();
+            if (selected) {
+                f.roundRect(dp(CX) - halfW, cy - rowH / 2f + dp(0.5f),
+                        halfW * 2f, rowH - dp(1f), (rowH - dp(1f)) / 2f, SEL);
+            }
+
+            float textX = dp(CX) - halfW + dp(INSET + 6f);
+            float textW = (dp(CX) + halfW - dp(34f)) - textX;
+            f.text(textX, cy + sp(12f) * 0.34f, sp(12f),
+                    selected ? TEXT : 0xFFD3DFE9, UiFrame.ALIGN_LEFT, false,
+                    ellipsize(labels[i], sp(12f), false, textW, m));
+
+            // status indicator on the right: GPS colour, plus a heart for favourites
+            float markX = dp(CX) + halfW - dp(INSET + 6f);
+            if (i == 1) {
+                drawHeart(f, markX, cy, dp(6.5f), locationColor(s));
+            } else {
+                f.circle(markX, cy, dp(5.5f), locationColor(s));
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ favourites
+
+    /** Favourites list: marked routes + the trailing "add" entry. */
+    private void drawFavScreen(UiFrame f, WatchState s, Metrics m) {
+        drawFavTopBar(f, s, m, "МОИ МАРШРУТЫ");
+        drawFavHeader(f, s, m, true);
+        if (s.favSel.size() == 0) {
+            drawFavEmpty(f, m);
+            return;
+        }
+        drawFavList(f, s, m, true);
+    }
+
+    /** Empty favourites: a red heart and a hint to add routes. */
+    private void drawFavEmpty(UiFrame f, Metrics m) {
+        drawHeart(f, dp(CX), dp(120f), dp(30f), 0xFFFF3B30);
+        float size = sp(9.5f);
+        String hint = "добавьте избранное";
+        if (m != null && m.width(hint, size, false) > dp(150f)) {
+            hint = "добавьте в избранное";
+        }
+        f.text(dp(CX), dp(170f), size, 0x99A8BCCB, UiFrame.ALIGN_CENTER, false, hint);
+    }
+
+    /**
+     * Header of the favourites screens: back on the left, save on the right,
+     * the same design as the stops screen.
+     */
+    private void drawFavHeader(UiFrame f, WatchState s, Metrics m, boolean withSave) {
+        // One wide pill: two halves on the favourites list, a single button in
+        // the add-mode (there is only back/save there, so no divider).
+        float ctrlTop = dp(31f);
+        float ctrlH = dp(30f);
+        float ctrlHalfW = dp(70f);
+        f.roundRect(dp(CX) - ctrlHalfW, ctrlTop, ctrlHalfW * 2f, ctrlH, ctrlH / 2f, 0xFF16242F);
+        if (withSave) {
+            f.line(dp(CX), ctrlTop + dp(5f), dp(CX), ctrlTop + ctrlH - dp(5f), dp(0.8f), 0xFF2A4256);
+        }
+        // the save label appears as soon as the marks changed — in the picker
+        // and on the favourites list alike
+        boolean dirty = s.favDirty;
+        String left = dirty ? "сохранить" : "назад";
+        // left half: back / save. Right half: "добавить" on the favourites list,
+        // empty in the add-mode (there the only action is back/save).
+        if (withSave) {
+            drawHalfLabel(f, m, ctrlTop, false, left, dirty ? ACCENT : TEXT, !dirty);
+            drawHalfLabel(f, m, ctrlTop, true, "добавить", ACCENT, false);
+        } else {
+            // the add-mode: one centred label for the whole pill
+            float size = sp(10f);
+            float w = m != null ? m.width(left, size, true) : dp(44f);
+            float chevronW = dirty ? 0f : dp(8f);
+            float gap = dirty ? 0f : dp(3f);
+            float groupX = dp(CX) - (chevronW + gap + w) / 2f;
+            if (!dirty) {
+                f.text(groupX + chevronW / 2f, ctrlTop + dp(20f), sp(15f),
+                        TEXT, UiFrame.ALIGN_CENTER, false, "\u2039");
+            }
+            f.text(groupX + chevronW + gap, ctrlTop + dp(18.5f), size,
+                    dirty ? ACCENT : TEXT, UiFrame.ALIGN_LEFT, true, left);
+        }
+    }
+
+    /** Draws a label centred in the left or right half of the header pill. */
+    private void drawHalfLabel(UiFrame f, Metrics m, float ctrlTop, boolean rightHalf,
+                               String label, int color, boolean withChevron) {
+        float centre = rightHalf ? CX + 35f : CX - 35f;
+        float size = sp(10f);
+        // shrink the label if the system font scale makes it overflow the half
+        float maxW = dp(60f) - (withChevron ? dp(12f) : 0f);
+        if (m != null) {
+            while (size > sp(7f) && m.width(label, size, true) > maxW) size -= sp(0.5f);
+        }
+        float w = m != null ? m.width(label, size, true) : dp(40f);
+        // the chevron and the label form one centred group inside the half
+        float chevronW = withChevron ? dp(8f) : 0f;
+        float gap = withChevron ? dp(2f) : 0f;
+        float groupW = chevronW + gap + w;
+        float groupX = dp(centre) - groupW / 2f;
+        if (withChevron) {
+            f.text(groupX + chevronW / 2f, ctrlTop + dp(20f), sp(15f), color,
+                    UiFrame.ALIGN_CENTER, false, "\u2039");
+        }
+        f.text(groupX + chevronW + gap, ctrlTop + dp(18.5f), size, color,
+                UiFrame.ALIGN_LEFT, true, label);
+    }
+
+    /** Route picker for adding a favourite. */
+    private void drawFavPickScreen(UiFrame f, WatchState s, Metrics m) {
+        drawFavTopBar(f, s, m, "ВЫБОР МАРШРУТА");
+        drawFavHeader(f, s, m, false);
+        drawFavList(f, s, m, false);
+        // the picker list uses the same top as the favourites list
+    }
+
+    /**
+     * Top bar of the favourites screens: the clock and, instead of the plain
+     * status dot, a heart that follows the same colour rule
+     * (green = GPS, yellow = manual position).
+     */
+    private void drawFavTopBar(UiFrame f, WatchState s, Metrics m, String title) {
+        String time = Text.clock(System.currentTimeMillis());
+        float timeSize = sp(11.5f);
+        f.text(dp(CX), dp(TIME_Y), timeSize, DIM, UiFrame.ALIGN_CENTER, false, time);
+
+        // Only the main favourites screen uses the softer status heart; the
+        // picker keeps the normal GPS indicator for clear state feedback.
+        int baseHeartColor = locationColor(s);
+        int heartColor = s.screen == WatchState.SCREEN_FAV
+                ? (baseHeartColor & 0x00FFFFFF) | 0xCC000000
+                : baseHeartColor;
+        float tw = m != null ? m.width(time, timeSize, false) : dp(30f);
+        // vector heart next to the clock (a glyph may render as a red emoji).
+        // The shape is optically lower than its centre, hence the extra lift so
+        // the heart sits on the same line as the clock digits.
+        drawHeart(f, dp(CX) + tw / 2f + dp(8.5f), dp(TIME_Y - 4.6f), dp(4.4f), heartColor);
+    }
+
+    /** Shared list body for both favourite screens. */
+    private void drawFavList(UiFrame f, WatchState s, Metrics m, boolean withAdd) {
+        Selection sel = withAdd ? s.favSel : s.favPickSel;
+        int top = sel.topIndex();
+        for (int row = 0; row < FavList.VISIBLE; row++) {
+            int idx = top + row;
+            if (idx < 0) continue;
+            if (withAdd) {
+                if (idx >= sel.size()) continue;
+            } else if (idx >= s.routes.size()) {
+                continue;
+            }
+
+            // both lists draw by the key stored in the selection, so the
+            // add-mode can re-sort its rows (marked routes first)
+            RouteInfo r = s.routeById(withAdd ? favRouteId(s, idx) : s.favPickSel.keyAt(idx));
+            if (r == null) continue;
+
+            float scale = FavList.scaleFor(row, sel.selectedIndex() - sel.topIndex());
+            float cyDp = FavList.rowCenterDp(FAV_TOP, row);
+            float cy = dp(cyDp);
+            float rowH = dp(FavList.rowHeightDp(row));
+            float rowWDp = FocalList.widthForRow(FavList.rowTopDp(FAV_TOP, row),
+                    FavList.rowHeightDp(row), R, CX, 10f, 214f);
+            float halfW = dp(rowWDp) / 2f;
+            boolean selected = idx == sel.selectedIndex();
+
+            if (selected) {
+                // a wider grey pill, like on the main route list
+                float selHalf = dp(rowWDp) / 2f + dp(3f);
+                f.roundRect(dp(CX) - selHalf, cy - rowH / 2f + dp(0.5f),
+                        selHalf * 2f, rowH - dp(1f), (rowH - dp(1f)) / 2f, SEL);
+            }
+
+            // route badge on the left
+            float badgeX = dp(CX) - halfW + dp(INSET + 6f);
+            int color = routeColor(r.type);
+            float badgeR = dp(17f) * scale;
+            f.circle(badgeX, cy, badgeR, color);
+            f.circle(badgeX, cy, badgeR - dp(1f) * scale, color);
+            String num = r.name;
+            float numBase = num.length() >= 4 ? sp(9.5f) : (num.length() == 3 ? sp(10.5f) : sp(12.5f));
+            float numSize = numBase * scale;
+            f.text(badgeX, cy + numSize * 0.36f, numSize, BADGE_TEXT, UiFrame.ALIGN_CENTER, true, num);
+
+            // check mark: a small circle overlapping the badge's bottom-right corner
+            if (!withAdd) {
+                // the picker only: green tick when marked, outline otherwise
+                boolean marked = s.favs.contains(r.id);
+                drawMarkCircle(f, badgeX + badgeR * 0.62f, cy + badgeR * 0.62f,
+                        dp(6f) * scale, marked);
+            }
+
+            // two text lines, exactly like the route picker
+            float textX = badgeX + badgeR + dp(8f);
+            // keep the text clear of the tick in the bottom-right corner
+            float textW = (dp(CX) + halfW - dp(26f)) - textX;
+            float titleSize = sp(13f) * scale;
+            String title = r.title.isEmpty() ? typeLabel(r.type) : r.title;
+            title = ellipsize(title, titleSize, false, textW, m);
+            f.text(textX, cy - dp(1.5f) * scale, titleSize,
+                    selected ? TEXT : 0xFFD3DFE9, UiFrame.ALIGN_LEFT, false, title);
+            f.text(textX, cy + dp(12f) * scale, sp(8.5f) * scale,
+                    selected ? DIM : FAINT, UiFrame.ALIGN_LEFT, false, typeLabel(r.type));
+        }
+
+        drawScrollbar(f, sel.size(), sel.topIndex(), FavList.VISIBLE, true, FavList.SELECTED_SLOT);
+    }
+
+    /**
+     * Minimal tick badge on the route icon: a small green disc with a thin
+     * dark check, or a thin outline for an unmarked route.
+     */
+    private void drawMarkCircle(UiFrame f, float cx, float cy, float radius, boolean marked) {
+        if (marked) {
+            f.circle(cx, cy, radius, GOOD);
+            // thin check, centred inside the disc
+            float k = radius * 0.40f;
+            float lx = cx - k * 0.45f;
+            float ly = cy + k * 0.10f;
+            float mx = cx - k * 0.05f;
+            float my = cy + k * 0.45f;
+            float rx = cx + k * 0.60f;
+            float ry = cy - k * 0.50f;
+            f.line(lx, ly, mx, my, dp(1.1f), 0xFF0B1218);
+            f.line(mx, my, rx, ry, dp(1.1f), 0xFF0B1218);
+        } else {
+            f.ring(cx, cy, radius - dp(0.4f), dp(1.1f), 0xFF44586A);
+        }
+    }
+
+    /** Route id stored in the favourites list at the given index. */
+    private static String favRouteId(WatchState s, int index) {
+        String key = s.favSel.keyAt(index);
+        if (key == null || key.equals(WatchState.ADD_KEY)) return null;
+        return key;
     }
 
     // -------------------------------------------------------------- stop board
@@ -302,11 +626,14 @@ public final class WatchUi {
         String sn = ellipsize(stopName, sp(12f), true, dp(130f), m);
         f.text(dp(CX), dp(67f), sp(12f), TEXT, UiFrame.ALIGN_CENTER, true, sn);
 
+        boolean routeIsFav = s.currentRouteIsFav();
         drawMenuItem(f, 0, s.menuSel.selectedIndex() == 0,
-                isManualHere ? "✓ Я здесь (убрать)" : "Я здесь", 40f, 36f, 13.5f, m);
+                isManualHere ? "✓ Я здесь (убрать)" : "Я здесь", 36f, 32f, 12.5f, m);
         drawMenuItem(f, 1, s.menuSel.selectedIndex() == 1,
-                alertHere ? "✓ Жду (снять)" : "Ждать автобус", 40f, 36f, 13.5f, m);
-        drawMenuItem(f, 2, s.menuSel.selectedIndex() == 2, "Назад", 40f, 36f, 13.5f, m);
+                alertHere ? "✓ Жду (снять)" : "Ждать автобус", 36f, 32f, 12.5f, m);
+        drawMenuItem(f, 2, s.menuSel.selectedIndex() == 2,
+                routeIsFav ? "✓ Мои (убрать)" : "В мои", 36f, 32f, 12.5f, m);
+        drawMenuItem(f, 3, s.menuSel.selectedIndex() == 3, "Назад", 36f, 32f, 12.5f, m);
     }
 
     // ------------------------------------------------------------ city picker
@@ -347,22 +674,65 @@ public final class WatchUi {
 
     // ---------------------------------------------------------------- settings
 
+    /**
+     * Settings screen: the very same list construction as the route picker —
+     * five fisheye rows from ROUTES_TOP, the same selection pill and the same
+     * position-based scale, so the settings look and scroll like the main list.
+     */
+    /**
+     * Settings: a four-row list under the "НАСТРОЙКИ" title. The selected row
+     * is always in the centre slot, so the list scrolls while scrolling stops.
+     */
     private void drawSettings(UiFrame f, WatchState s, Metrics m) {
-        f.text(dp(CX), dp(TIME_Y), sp(12f), DIM, UiFrame.ALIGN_CENTER, false,
-                Text.clock(System.currentTimeMillis()));
-        f.text(dp(CX), dp(TITLE_Y), sp(10f), ACCENT, UiFrame.ALIGN_CENTER, true, "НАСТРОЙКИ");
-        // status line instead of a separate menu item (no duplicate entries)
-        String pos = s.manualActive() ? ("позиция: " + ellipsize(s.manualStopName, sp(8.5f), false, dp(80f), m))
-                : "позиция: авто";
-        f.text(dp(CX), dp(66f), sp(8.5f), FAINT, UiFrame.ALIGN_CENTER, false, pos);
+        drawTopBar(f, s, m);
+        f.text(dp(CX), dp(SETTINGS_TITLE_Y), sp(9.5f), ACCENT,
+                UiFrame.ALIGN_CENTER, true, "НАСТРОЙКИ");
 
-        drawMenuItem(f, 0, s.menuSel.selectedIndex() == 0,
-                "Город: " + (s.city == null ? "—" : s.city.name), 34f, 28f, 11.5f, m);
-        drawMenuItem(f, 1, s.menuSel.selectedIndex() == 1,
-                "Автопозиция: " + (s.autoTrack ? "ВКЛ" : "ВЫКЛ"), 34f, 28f, 11.5f, m);
-        drawMenuItem(f, 2, s.menuSel.selectedIndex() == 2,
-                "Ожидание: " + (s.alertsEnabled ? "ВКЛ" : "ВЫКЛ"), 34f, 28f, 11.5f, m);
-        drawMenuItem(f, 3, s.menuSel.selectedIndex() == 3, "Назад", 34f, 28f, 11.5f, m);
+        int top = s.menuSel.topIndex();
+        int count = s.menuSel.size();
+        for (int row = 0; row < WatchState.SETTINGS_VISIBLE; row++) {
+            int idx = top + row;
+            if (idx < 0 || idx >= count) continue;
+
+            float scale = FavList.scaleFor(row, FavList.SELECTED_SLOT);
+            float cyDp = FavList.rowCenterDp(SETTINGS_TOP, row);
+            float cy = dp(cyDp);
+            float rowH = dp(FavList.rowHeightDp(row));
+            float rowWDp = FocalList.widthForRow(FavList.rowTopDp(SETTINGS_TOP, row),
+                    FavList.rowHeightDp(row), R, CX, 10f, 214f);
+            float halfW = dp(rowWDp) / 2f;
+            boolean selected = idx == s.menuSel.selectedIndex();
+
+            if (selected) {
+                float selHalf = halfW + dp(3f);
+                f.roundRect(dp(CX) - selHalf, cy - rowH / 2f + dp(0.5f),
+                        selHalf * 2f, rowH - dp(1f), (rowH - dp(1f)) / 2f, SEL);
+            }
+
+            float labelSize = sp(12f) * scale;
+            String label = ellipsize(settingsLabel(s, idx), labelSize, selected,
+                    halfW * 2f - dp(16f), m);
+            f.text(dp(CX), cy + labelSize * 0.36f, labelSize,
+                    selected ? TEXT : 0xFFD3DFE9, UiFrame.ALIGN_CENTER, true, label);
+        }
+        drawScrollbar(f, count, top, WatchState.SETTINGS_VISIBLE, true, FavList.SELECTED_SLOT);
+    }
+
+    /** Text of the settings row with the given index. */
+    private static String settingsLabel(WatchState s, int index) {
+        switch (index) {
+            case 0:
+                return "Город: " + (s.city == null ? "—" : s.city.name);
+            case 1:
+                return "Автопозиция: " + (s.autoTrack ? "ВКЛ" : "ВЫКЛ");
+            case 2:
+                return "Ожидание: " + (s.alertsEnabled ? "ВКЛ" : "ВЫКЛ");
+            case 3:
+                return "Начальный экран";
+            case 4:
+            default:
+                return "Назад";
+        }
     }
 
     private void drawMenuItem(UiFrame f, int index, boolean selected, String label, Metrics m) {
@@ -396,17 +766,29 @@ public final class WatchUi {
     }
 
     private static String destination(RouteInfo route, int dir) {
-        String[] parts = route.title.trim().split("\\s*(?:↔|⇄|—|–|-)+\\s*");
-        if (parts.length >= 2) {
-            String a = parts[0].trim();
-            String b = parts[parts.length - 1].trim();
-            return dir == 0 ? b : a;
-        }
-        return route.title;
+        return route.destination(dir);
     }
 
     private void drawScrollbar(UiFrame f, int n, int topIndex) {
-        if (n <= FocalList.VISIBLE) return;
+        drawScrollbar(f, n, topIndex, FocalList.VISIBLE);
+    }
+
+    /** Scrollbar for a list of {@code visible} rows; hidden when all fit. */
+    private void drawScrollbar(UiFrame f, int n, int topIndex, int visible) {
+        drawScrollbar(f, n, topIndex, visible, false, visible / 2);
+    }
+
+    /**
+     * @param always draw the bar even when the list is shorter than the window
+     *               (the favourites list scrolls through short lists too)
+     */
+    private void drawScrollbar(UiFrame f, int n, int topIndex, int visible, boolean always) {
+        drawScrollbar(f, n, topIndex, visible, always, visible / 2);
+    }
+
+    private void drawScrollbar(UiFrame f, int n, int topIndex, int visible,
+                               boolean always, int centreSlot) {
+        if (n <= (always ? 1 : visible)) return;
         float r = dp(108f);
         float cx = dp(CX);
         float cy = dp(CX);
@@ -414,10 +796,11 @@ public final class WatchUi {
         float trackSweep = 104f;
         f.arc(cx, cy, r, trackStart, trackSweep, dp(1.4f), TRACK);
 
-        int lo = FocalList.minTop(n);
-        int hi = FocalList.maxTop(n);
+        int lo = -centreSlot;
+        int hi = Math.max(lo, n - 1 - centreSlot);
         float frac = Geo.clamp((topIndex - lo) / (float) Math.max(1, hi - lo), 0f, 1f);
-        float thumb = Math.max(14f, trackSweep * FocalList.VISIBLE / n);
+        // the thumb is the same size on every screen (as on the main list)
+        float thumb = 14f;
         float start = trackStart + (trackSweep - thumb) * frac;
         f.arc(cx, cy, r, start, thumb, dp(2.2f), ACCENT);
     }
